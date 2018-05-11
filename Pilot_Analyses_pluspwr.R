@@ -436,10 +436,12 @@ save.image(file = "Pilot_Analysis_UpdatedRR.RData")
 #Power Analysis
 ###################
 
-rm(list=ls()) #remove previous objects, if necessary
+rm(list=ls()) #remove previous objects
+load("Pilot_Analysis_UpdatedRR.RData") # if not already loaded in working memory
 
 #####
 #Effect of competition and effort on accuracy
+#use model m.3.b
 ####
 
 ropelow <- -0.2
@@ -447,20 +449,6 @@ ropehigh <- 0.2
 
 df_rope <- data.frame(c_outside = rep(0, 200), ce_outside = rep(0, 200), c_plusce_outside = rep(0, 200), 
                       c_inside = rep(0, 200), ce_inside = rep(0, 200), c_plusce_inside = rep(0, 200))
-
-######Model for effect of competition and effort on accuracy######
-m.3.b <- map2stan(
-  alist(
-    Correct_Guess ~ dbinom(1, theta), 
-    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
-    bC ~ dnorm(0, 10), 
-    bE ~ dnorm(0, 10), 
-    bCE ~ dnorm(0, 10),
-    bNs ~ dnorm(0, 10),
-    a ~ dnorm(0, 10), 
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1.5, 0.05)
-  ), data=data.c, iter=7500, chains=4, cores = 4, warmup=1000)
 
 #extract samples from posterior for all parameters
 post <- extract.samples(m.3.b)
@@ -577,7 +565,6 @@ if(all(beta_ce > ropelow) & all(beta_ce < ropehigh)) {
 
 #saving rope tracker, then removing model for power
 save(df_rope, "df_rope_accuracy.RData")
-rm(m.3.power)
 
 ##shuffling samples from m.3.b
 post_a_player <- post["a_player"] # just samples for intercept values for each player
@@ -602,6 +589,7 @@ names(post)[open_spot] <- "a_player"
 
 #####
 #Effect of competition and effort on time until guessing 
+#use model m.1.b
 ####
 
 ropelow <- -1
@@ -609,20 +597,6 @@ ropehigh <- 1
 
 df_rope_time <- data.frame(c_outside = rep(0, 200), e_outside = rep(0, 200), ce_outside = rep(0, 200), 
                       c_inside = rep(0, 200), e_inside = rep(0, 200), ce_inside = rep(0, 200))
-
-m.1.b <- map2stan(
-  alist(
-    ElapsedTime_Guess ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
-    bC ~ dnorm(0, 10), 
-    bE ~ dnorm(0, 30), 
-    bCE ~ dnorm(0, 10),
-    bNs ~ dnorm(0, 10),
-    a ~ dgamma(1.5, 0.05), 
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1.5, 0.05),
-    sigma ~ dgamma(2, 0.5)
-  ), data=data.c, iter=7500, chains=4, cores = 4, warmup=1000)
 
 #extract samples from posterior for all parameters
 post <- extract.samples(m.1.b)
@@ -731,7 +705,6 @@ for(runs in 1:200) {
   
   #save rope cound, then remove already compiled models
   save(df_rope_time, "df_rope_time.RData")
-  rm(m.1.power)
   
   ##shuffling samples from m.1.b
   post_a_player <- post["a_player"] # just samples for intercept values for each player
@@ -754,9 +727,9 @@ for(runs in 1:200) {
   
 }
 
-
 #####
 #Effect of competition and effort on tiles
+#use model m.2.b
 ####
 
 ropelow <- -0.5
@@ -764,20 +737,6 @@ ropehigh <- 0.5
 
 df_rope_tiles <- data.frame(c_outside = rep(0, 200), e_outside = rep(0, 200), ce_outside = rep(0, 200), 
                             c_inside = rep(0, 200), e_inside = rep(0, 200), ce_inside = rep(0, 200))
-
-m.2.b <- map2stan(
-  alist(
-    TilesRevealed ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
-    bC ~ dnorm(0, 10), 
-    bE ~ dnorm(0, 10), 
-    bCE ~ dnorm(0, 10),
-    bNs ~ dnorm(0, 10),
-    a ~ dunif(0, 25), 
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1.5, 0.05),
-    sigma ~ dgamma(2, 0.5)
-  ), data=data.c, iter=75000, chains=4, warmup=1000)
 
 #extract samples from posterior for all parameters
 post <- extract.samples(m.2.b)
@@ -887,7 +846,6 @@ for(runs in 1:200) {
   
   #save rope tracker, then remove already compiled model
   save(df_rope_tiles, "df_rope_tiles.RData")
-  rm(m.2.power)
   
   ##shuffling samples from m.2.b
   post_a_player <- post["a_player"] # just samples for intercept values for each player
@@ -911,8 +869,167 @@ for(runs in 1:200) {
 
 #####
 #Effect of competition and effort on guess rate
+#use model m.4.b
 ####
 
+ropelow <- -0.5
+ropehigh <- 0.5
+
+df_rope_guessrate <- data.frame(c_outside = rep(0, 200), c_plusce_outside = rep(0, 200), 
+                            c_inside = rep(0, 200), c_plusce_inside = rep(0, 200))
+
+#extract samples from posterior for all parameters
+post <- extract.samples(m.4.b)
+
+#creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
+for(runs in 1:2) {
+  
+  #generate empty data frame to store simulated data
+  df_guess_full <- data.frame(id = 1:200, competition = c(rep(0, 100), rep(1, 100)), 
+                         effort = c(rep(0, 50), rep(1, 50), rep(0, 50), rep(1, 50)), mean_n_major.s = NA, guessrate = NA)
+  
+  #generate n_major.s values for each problem that a participant solves and store in the full data
+  df_guess_full$mean_n_major.s <- sample(data.rate$mean_n_major.s, size = nrow(df_guess_full), replace = TRUE)
+  
+  
+  #generate simulated mean guessrate for 200 players
+  df_guess_full$mean_guessrate <- NA
+  
+  for(i in 1:nrow(df_guess_full)) {
+    
+    df_guess_full$mean_guessrate[i] <- post$a[i] + post$bC[i]*df_guess_full$competition[i] + 
+      post$bE[i]*df_guess_full$effort[i] + post$bCE[i]*df_guess_full$competition[i]*df_guess_full$effort[i] + 
+      post$bNs[i]*df_guess_full$mean_n_major.s[i]
+  }
+
+  #generate individual-level data for each participant
+  df_guess_full$guessrate <- rnorm(nrow(df_guess_full), mean = df_guess_full$mean_guessrate, sd = post$sigma)
+  
+  #round guessrates less than 0 to be 0
+  df_guess_full$guessrate[df_guess_full$guessrate < 0] <- 0
+  
+  #subset data frame for analysis
+  df <- df_guess_full[,c("id", "competition", "effort", "mean_n_major.s", "guessrate")]
+  
+  m.4.power <- map2stan(
+    alist(
+      guessrate ~ dnorm(mu, sigma), 
+      mu <- a + bC*competition + bE*effort + bCE*competition*effort + bNs*mean_n_major.s, 
+      bC ~ dnorm(0, 10), 
+      bE ~ dnorm(0, 10), 
+      bCE ~ dnorm(0, 10),
+      bNs ~ dnorm(0, 10),
+      a ~ dgamma(2, 0.05), 
+      sigma ~ dgamma(2, 0.5)
+    ), data=df, iter=5000, chains=4, cores = 4, warmup=1000)
+  
+  samples <- extract.samples(m.4.power)
+  beta_c <- HPDI(samples$bC, prob = 0.95)
+  beta_c_plusce <- HPDI(samples$bC + samples$bCE, prob = 0.95)
+  
+  #competition beta
+  if(all(beta_c < ropelow) | all(beta_c > ropehigh)) {
+    df_rope_guessrate$c_outside[runs] <- 1
+  }
+  if(all(beta_c > ropelow) & all(beta_c < ropehigh)) {
+    df_rope_guessrate$c_inside[runs] <- 1
+  }
+  #difference between competition x no effort and competition x effort
+  if(all(beta_c_plusce < ropelow) | all(beta_c_plusce > ropehigh)) {
+    df_rope_guessrate$c_plusce_outside[runs] <- 1
+  }
+  if(all(beta_c_plusce > ropelow) & all(beta_c_plusce < ropehigh)) {
+    df_rope_guessrate$c_plusce_inside[runs] <- 1
+  }
+  
+  #save rope tracker, then remove already compiled model
+  save(df_rope_guessrate, file = "df_rope_guessrate.RData")
+  
+  #shuffle samples in post
+  ran_pos <- sample(1:nrow(post$a), nrow(post$a), replace = FALSE)
+  post <- lapply(post, function(a) a[ran_pos])
+}
+
+########
+#Effect of competition on rate of solving arithmetic problems
+#use model m.5.b
+
+ropelow <- -0.2
+ropehigh <- 0.2
+
+df_rope_mathrate <- data.frame(c_outside = rep(0, 200), c_plusce_outside = rep(0, 200), 
+                                c_inside = rep(0, 200), c_plusce_inside = rep(0, 200))
+
+#extract samples from posterior for all parameters
+post <- extract.samples(m.5.b)
+
+#creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
+for(runs in 1:2) {
+  
+  #generate empty data frame to store simulated data
+  df_guess_full <- data.frame(id = 1:200, competition = c(rep(0, 100), rep(1, 100)), 
+                              effort = c(rep(0, 50), rep(1, 50), rep(0, 50), rep(1, 50)), mean_n_major.s = NA, mathrate = NA)
+  
+  #generate n_major.s values for each problem that a participant solves and store in the full data
+  df_guess_full$mean_n_major.s <- sample(data.mathrate$mean_n_major.s, size = nrow(df_guess_full), replace = TRUE)
+  
+  #generate simulated mean guessrate for 200 players
+  df_guess_full$mean_mathrate <- NA
+  
+  for(i in 1:nrow(df_guess_full)) {
+    
+    df_guess_full$mean_mathrate[i] <- post$a[i] + post$bC[i]*df_guess_full$competition[i] + 
+                                                          post$bNs[i]*df_guess_full$mean_n_major.s[i]
+  }
+  #generate individual-level data for each participant
+  df_guess_full$mathrate <- rnorm(nrow(df_guess_full), mean = df_guess_full$mean_mathrate, sd = post$sigma)
+  
+  #round guessrates less than 0 to be 0
+  df_guess_full$mathrate[df_guess_full$mathrate < 0] <- 0
+  
+  #subset data frame for analysis
+  df <- df_guess_full[,c("id", "competition", "effort", "mean_n_major.s", "mathrate")]
+  
+  m.5.power <- map2stan(
+    alist(
+      mathrate ~ dnorm(mu, sigma), 
+      mu <- a + bC*competition + bNs*mean_n_major.s, 
+      bC ~ dnorm(0, 10), 
+      bNs ~ dnorm(0, 10),
+      a ~ dgamma(1.5, 0.05), 
+      sigma ~ dgamma(2, 0.5)
+    ), data=df, iter=5000, chains=4, cores = 4, warmup=1000)
+  
+######STOPPED HERE
+  ###to do is to 1) finish the rest of this section and 2) find a way to recompile without crashing R session
+  
+  samples <- extract.samples(m.4.power)
+  beta_c <- HPDI(samples$bC, prob = 0.95)
+  beta_c_plusce <- HPDI(samples$bC + samples$bCE, prob = 0.95)
+  
+  #competition beta
+  if(all(beta_c < ropelow) | all(beta_c > ropehigh)) {
+    df_rope_guessrate$c_outside[runs] <- 1
+  }
+  if(all(beta_c > ropelow) & all(beta_c < ropehigh)) {
+    df_rope_guessrate$c_inside[runs] <- 1
+  }
+  #difference between competition x no effort and competition x effort
+  if(all(beta_c_plusce < ropelow) | all(beta_c_plusce > ropehigh)) {
+    df_rope_guessrate$c_plusce_outside[runs] <- 1
+  }
+  if(all(beta_c_plusce > ropelow) & all(beta_c_plusce < ropehigh)) {
+    df_rope_guessrate$c_plusce_inside[runs] <- 1
+  }
+  
+  #save rope tracker, then remove already compiled model
+  save(df_rope_guessrate, file = "df_rope_guessrate.RData")
+  rm(m.4.power)
+  
+  #shuffle samples in post
+  ran_pos <- sample(1:nrow(post$a), nrow(post$a), replace = FALSE)
+  post <- lapply(post, function(a) a[ran_pos])
+}
 
 
 
