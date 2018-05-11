@@ -448,10 +448,6 @@ ropehigh <- 0.2
 df_rope <- data.frame(c_outside = rep(0, 200), ce_outside = rep(0, 200), c_plusce_outside = rep(0, 200), 
                       c_inside = rep(0, 200), ce_inside = rep(0, 200), c_plusce_inside = rep(0, 200))
 
-#creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
-
-for(z in 1:200) {
-
 ######Model for effect of competition and effort on accuracy######
 m.3.b <- map2stan(
   alist(
@@ -466,6 +462,12 @@ m.3.b <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05)
   ), data=data.c, iter=7500, chains=4, cores = 4, warmup=1000)
 
+#extract samples from posterior for all parameters
+post <- extract.samples(m.3.b)
+
+#creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
+for(z in 1:200) {
+
 #generate empty data frame to store simulated data
 df_guess <- data.frame(id = 1:200, competition = c(rep(0, 100), rep(1, 100)), 
                        effort = c(rep(0, 50), rep(1, 50), rep(0, 50), rep(1, 50)), 
@@ -476,9 +478,6 @@ g_num_e <- aggregate(Guess_Number ~ ID_Player, data=data.c[data.c$Effort==1,], F
 g_num_e <- g_num_e$Guess_Number
 g_num_noe <- aggregate(Guess_Number ~ ID_Player, data=data.c[data.c$Effort==0,], FUN=max)
 g_num_noe <- g_num_noe$Guess_Number
-
-#extract samples from posterior for all parameters
-post <- extract.samples(m.3.b)
 
 #generate multiple observations per participant
 df_guess$nobs <- NA
@@ -533,6 +532,7 @@ df_guess_full$Correct_Guess <- rbinom(nrow(df_guess_full), size = 1, prob = df_g
 
 #analyze data
 df <- df_guess_full[,c("id", "competition", "effort", "n_major.s", "Correct_Guess")]
+
 m.3.power <- map2stan(
   alist(
     Correct_Guess ~ dbinom(1, theta), 
@@ -558,6 +558,7 @@ if(all(beta_c < ropelow) | all(beta_c > ropehigh)) {
 if(all(beta_c > ropelow) & all(beta_c < ropehigh)) {
   df_rope_tiles$betac_inside[runs] <- 1
 }
+
 #difference between no comp x effort and comp x effort
 if(all(beta_c_plusce < ropelow) | all(beta_c_plusce > ropehigh)) {
   df_rope_tiles$c_plusce_outside[runs] <- 1
@@ -565,6 +566,7 @@ if(all(beta_c_plusce < ropelow) | all(beta_c_plusce > ropehigh)) {
 if(all(beta_c_plusce > ropelow) & all(beta_c_plusce < ropehigh)) {
   df_rope_tiles$c_plusce_outside[runs] <- 1
 }
+
 #interaction between competition and effort
 if(all(beta_ce < ropelow) | all(beta_ce > ropehigh)) {
   df_rope_tiles$ce_outside[runs] <- 1
@@ -573,10 +575,30 @@ if(all(beta_ce > ropelow) & all(beta_ce < ropehigh)) {
   df_rope_tiles$ce_inside[runs] <- 1
 }
 
-#removing already compiled models
-rm(m.3.b)
+#saving rope tracker, then removing model for power
+save(df_rope, "df_rope_accuracy.RData")
 rm(m.3.power)
+
+##shuffling samples from m.3.b
+post_a_player <- post["a_player"] # just samples for intercept values for each player
+post["a_player"] <- NULL #updates post to not include intercept values
+
+#shuffle samples in post
+ran_pos <- sample(1:nrow(post$a), nrow(post$a), replace = FALSE)
+post <- lapply(post, function(a) a[ran_pos])
+
+#shuffle samples in post_a_player
+for(i in 1:ncol(post_a_player$a_player)) {
+  
+  post_a_player$a_player[,i] <- post_a_player$a_player[ran_pos,i]
 }
+
+#add post_a_player back into post
+open_spot <- 1+length(post)
+post[[open_spot]] <- post_a_player$a_player
+names(post)[open_spot] <- "a_player"
+   
+ }
 
 #####
 #Effect of competition and effort on time until guessing 
@@ -588,22 +610,25 @@ ropehigh <- 1
 df_rope_time <- data.frame(c_outside = rep(0, 200), e_outside = rep(0, 200), ce_outside = rep(0, 200), 
                       c_inside = rep(0, 200), e_inside = rep(0, 200), ce_inside = rep(0, 200))
 
+m.1.b <- map2stan(
+  alist(
+    ElapsedTime_Guess ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 30), 
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1.5, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=data.c, iter=7500, chains=4, cores = 4, warmup=1000)
+
+#extract samples from posterior for all parameters
+post <- extract.samples(m.1.b)
+
 #creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
 for(runs in 1:200) {
-  
-  m.1.b <- map2stan(
-    alist(
-      ElapsedTime_Guess ~ dnorm(mu, sigma), 
-      mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
-      bC ~ dnorm(0, 10), 
-      bE ~ dnorm(0, 30), 
-      bCE ~ dnorm(0, 10),
-      bNs ~ dnorm(0, 10),
-      a ~ dgamma(1.5, 0.05), 
-      a_player[ID_Player] ~ dnorm(0, sigma_player),
-      sigma_player ~ dgamma(1.5, 0.05),
-      sigma ~ dgamma(2, 0.5)
-    ), data=data.c, iter=5000, chains=4, cores = 4, warmup=1000)
   
   #generate empty data frame to store simulated data
   df_guess <- data.frame(id = 1:200, competition = c(rep(0, 100), rep(1, 100)), 
@@ -614,10 +639,6 @@ for(runs in 1:200) {
   g_num_e <- g_num_e$Guess_Number
   g_num_noe <- aggregate(Guess_Number ~ ID_Player, data=data.c[data.c$Effort==0,], FUN=max)
   g_num_noe <- g_num_noe$Guess_Number
-  
-  #extract samples from posterior for all parameters
-  post_raw <- extract.samples(m.1.b)
-  post <- post_raw
   
   #generate multiple observations per participant
   df_guess$nobs <- NA
@@ -690,7 +711,6 @@ for(runs in 1:200) {
     ), data=df, iter=5000, warmup=1000, chains = 4, cores = 4)
   
   samples <- extract.samples(m.1.power)
- 
   beta_c <- HPDI(samples$bC, prob = 0.95)
   beta_c_plusce <- HPDI(samples$bC + samples$bCE, prob = 0.95)
   
@@ -709,11 +729,31 @@ for(runs in 1:200) {
     df_rope_time$ce_inside[1] <- 1
   }
   
-  #remove already compiled models
+  #save rope cound, then remove already compiled models
   save(df_rope_time, "df_rope_time.RData")
-  rm(m.1.b)
   rm(m.1.power)
+  
+  ##shuffling samples from m.1.b
+  post_a_player <- post["a_player"] # just samples for intercept values for each player
+  post["a_player"] <- NULL #updates post to not include intercept values
+  
+  #shuffle samples in post
+  ran_pos <- sample(1:nrow(post$a), nrow(post$a), replace = FALSE)
+  post <- lapply(post, function(a) a[ran_pos])
+  
+  #shuffle samples in post_a_player
+  for(i in 1:ncol(post_a_player$a_player)) {
+    
+    post_a_player$a_player[,i] <- post_a_player$a_player[ran_pos,i]
+  }
+  
+  #add post_a_player back into post
+  open_spot <- 1+length(post)
+  post[[open_spot]] <- post_a_player$a_player
+  names(post)[open_spot] <- "a_player"
+  
 }
+
 
 #####
 #Effect of competition and effort on tiles
@@ -725,22 +765,25 @@ ropehigh <- 0.5
 df_rope_tiles <- data.frame(c_outside = rep(0, 200), e_outside = rep(0, 200), ce_outside = rep(0, 200), 
                             c_inside = rep(0, 200), e_inside = rep(0, 200), ce_inside = rep(0, 200))
 
+m.2.b <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=data.c, iter=75000, chains=4, warmup=1000)
+
+#extract samples from posterior for all parameters
+post <- extract.samples(m.2.b)
+
 #creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
 for(runs in 1:200) {
-  
-  m.2.b <- map2stan(
-    alist(
-      TilesRevealed ~ dnorm(mu, sigma), 
-      mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
-      bC ~ dnorm(0, 10), 
-      bE ~ dnorm(0, 10), 
-      bCE ~ dnorm(0, 10),
-      bNs ~ dnorm(0, 10),
-      a ~ dunif(0, 25), 
-      a_player[ID_Player] ~ dnorm(0, sigma_player),
-      sigma_player ~ dgamma(1.5, 0.05),
-      sigma ~ dgamma(2, 0.5)
-    ), data=data.c, iter=10000, chains=3, warmup=1000)
   
   #generate empty data frame to store simulated data
   df_guess <- data.frame(id = 1:200, competition = c(rep(0, 100), rep(1, 100)), 
@@ -751,10 +794,6 @@ for(runs in 1:200) {
   g_num_e <- g_num_e$Guess_Number
   g_num_noe <- aggregate(Guess_Number ~ ID_Player, data=data.c[data.c$Effort==0,], FUN=max)
   g_num_noe <- g_num_noe$Guess_Number
-  
-  #extract samples from posterior for all parameters
-  post_raw <- extract.samples(m.2.b)
-  post <- post_raw
   
   #generate multiple observations per participant
   df_guess$nobs <- NA
@@ -846,10 +885,28 @@ for(runs in 1:200) {
     df_rope_tiles$ce_inside[runs] <- 1
   }
   
-  #remove already compiled models
-  save(df_rope_time, "df_rope_tiles.RData")
-  rm(m.2.b)
+  #save rope tracker, then remove already compiled model
+  save(df_rope_tiles, "df_rope_tiles.RData")
   rm(m.2.power)
+  
+  ##shuffling samples from m.2.b
+  post_a_player <- post["a_player"] # just samples for intercept values for each player
+  post["a_player"] <- NULL #updates post to not include intercept values
+  
+  #shuffle samples in post
+  ran_pos <- sample(1:nrow(post$a), nrow(post$a), replace = FALSE)
+  post <- lapply(post, function(a) a[ran_pos])
+  
+  #shuffle samples in post_a_player
+  for(i in 1:ncol(post_a_player$a_player)) {
+    
+    post_a_player$a_player[,i] <- post_a_player$a_player[ran_pos,i]
+  }
+  
+  #add post_a_player back into post
+  open_spot <- 1+length(post)
+  post[[open_spot]] <- post_a_player$a_player
+  names(post)[open_spot] <- "a_player"
 }
 
 #####
