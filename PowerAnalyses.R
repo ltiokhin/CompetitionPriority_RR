@@ -171,8 +171,45 @@ sum(HPDI_Accuracy$ce_low > 0.05)
 
 #####
 #Effect of competition and effort on tiles
-#use model m.2.b
 ####
+
+#original model
+# m.2.b <- map2stan(
+#   alist(
+#     TilesRevealed ~ dnorm(mu, sigma), 
+#     mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
+#     bC ~ dnorm(0, 10), 
+#     bE ~ dnorm(0, 10), 
+#     bCE ~ dnorm(0, 10),
+#     bNs ~ dnorm(0, 10),
+#     a ~ dunif(0, 25), 
+#     a_player[ID_Player] ~ dnorm(0, sigma_player),
+#     sigma_player ~ dgamma(1.5, 0.05),
+#     sigma ~ dgamma(2, 0.5)
+#   ), data=data.c, iter=10000, chains=3, cores=4, warmup=1000)
+
+
+#modified model where data  generated from a gamma distribution
+m.2.b.gamma <- map2stan(
+  alist(
+    TilesRevealed ~ dgamma(shape, rate),
+    shape <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s,
+    bC ~ dnorm(0, 10),
+    bE ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05),
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    rate ~ dgamma(1, 0.05)
+  ), data=data.c, start=list(rate = 1),  iter=2000, chains=1, cores=4, warmup=1000)
+
+precis(m.2.b.gamma)
+pairs(m.2.b.gamma, pars=c("bC", "bCE", "bNs", "a"))
+plot(m.2.b.gamma)
+
+save(m.2.b.gamma, file = "m.2.b.gamma.RData")
+load("m.2.b.gamma.RData")
 
 df_HPDI_tiles <- data.frame(c_low = rep(0, 200), c_high = rep(0, 200), ce_low = rep(0, 200), ce_high = rep(0, 200),
                             c_plusce_low = rep(0, 200), c_plusce_high = rep(0, 200))
@@ -181,7 +218,7 @@ df_HPDI_tiles <- data.frame(c_low = rep(0, 200), c_high = rep(0, 200), ce_low = 
 m_list <- vector("list", length = 200)
 
 #extract samples from posterior for all parameters
-post <- extract.samples(m.2.b)
+post <- extract.samples(m.2.b.gamma)
 
 #creating 200 simulated data sets, analyzing, and comparing their CI's to the ROPE
 for(runs in 1:200) {
@@ -239,13 +276,13 @@ for(runs in 1:200) {
   
   for(i in 1:nrow(df_guess_full)) {
     
-    df_guess_full$mean_tiles[i] <- df_guess_full$a[i] + df_guess_full$a_player[i] + post$bC[i]*df_guess_full$competition[i] + 
+    df_guess_full$tiles_shape.m[i] <- df_guess_full$a[i] + df_guess_full$a_player[i] + post$bC[i]*df_guess_full$competition[i] + 
       post$bE[i]*df_guess_full$effort[i] + post$bCE[i]*df_guess_full$competition[i]*df_guess_full$effort[i] + 
       post$bNs[i]*df_guess_full$n_major.s[i]
   }
   
   #generate individual-level data for each participant
-  df_guess_full$TilesRevealed <- rnorm(nrow(df_guess_full), mean = df_guess_full$mean_tiles, sd = post$sigma)
+  df_guess_full$TilesRevealed <- rgamma(nrow(df_guess_full), shape = df_guess_full$tiles_shape.m, rate = post$rate)
   
   #round tiles less than 0 to be 0
   df_guess_full$TilesRevealed[df_guess_full$TilesRevealed < 0] <- 0
@@ -267,11 +304,11 @@ for(runs in 1:200) {
         a_player[id] ~ dnorm(0, sigma_player),
         sigma_player ~ dgamma(1.5, 0.05),
         sigma ~ dgamma(2, 0.5)
-      ), data=df, iter=6000, chains=4, cores = 4, warmup=500)
+      ), data=df, iter=3000, chains=3, cores = 4, warmup=500)
     
     samples <- extract.samples(m.2.power)
   } else if(runs > 1) {
-    m_list[[runs]] <- map2stan(m.2.power, data=df, iter=6000, chains=4, cores=4, warmup=500)
+    m_list[[runs]] <- map2stan(m.2.power, data=df, iter=3000, chains=3, cores=4, warmup=500)
     samples <- extract.samples(m_list[[runs]])
   }
   
@@ -283,7 +320,7 @@ for(runs in 1:200) {
   df_HPDI_tiles$c_plusce_high[runs] <- HPDI(samples$bC + samples$bCE, prob = 0.95)[2]
   
   #saving 
-  save(df_HPDI_tiles, file = "df_HPDI_tiles81.RData")
+  save(df_HPDI_tiles, file = "df_HPDI_tiles_gamma1.RData")
   
   ##shuffling samples from m.2.b
   post_a_player <- post["a_player"] # just samples for intercept values for each player
