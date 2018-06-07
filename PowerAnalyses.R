@@ -6,6 +6,7 @@ library(tidyverse)
 library(rethinking)
 library(lme4)
 library(lmerTest)
+library(simr)
 library(effects)
 library(sjPlot)
 library(stringr)
@@ -111,11 +112,11 @@ for(runs in 1:200) {
         a ~ dnorm(0, 10), 
         a_player[id] ~ dnorm(0, sigma_player),
         sigma_player ~ dgamma(1.5, 0.05)
-      ), data=df, iter=6000, warmup=1000, chains=3, cores = 4)
+      ), data=df, iter=6000, warmup=500, chains=3, cores = 4)
     samples <- extract.samples(m.3.power)
     
   } else if(runs > 1) {
-    m_list[[runs]] <- map2stan(m.3.power, data=df, iter=6000, warmup=1000, chains=3, cores = 4)
+    m_list[[runs]] <- map2stan(m.3.power, data=df, iter=6000, warmup=500, chains=3, cores = 4)
     samples <- extract.samples(m_list[[runs]])
   }
   
@@ -152,7 +153,7 @@ for(runs in 1:200) {
 #########
 #ROPES for Accuracy
 #########
-HPDI_Accuracy <- df_HPDI_accuracy
+load("HPDI_Accuracy.RData")
 
 #visualizing
 ggplot(HPDI_Accuracy, aes(x = 1:200)) + 
@@ -188,27 +189,25 @@ sum(HPDI_Accuracy$ce_low > 0.05)
 #     sigma ~ dgamma(2, 0.5)
 #   ), data=data.c, iter=10000, chains=3, cores=4, warmup=1000)
 
+#modified model where data generated from a gamma distribution, used for below power analysis
 
-#modified model where data  generated from a gamma distribution
-m.2.b.gamma <- map2stan(
-  alist(
-    TilesRevealed ~ dgamma(shape, rate),
-    shape <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s,
-    bC ~ dnorm(0, 10),
-    bE ~ dnorm(0, 10),
-    bCE ~ dnorm(0, 10),
-    bNs ~ dnorm(0, 10),
-    a ~ dgamma(1, 0.05),
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1.5, 0.05),
-    rate ~ dgamma(1, 0.05)
-  ), data=data.c, start=list(rate = 1),  iter=2000, chains=1, cores=4, warmup=1000)
+# m.2.b.gamma <- map2stan(
+#   alist(
+#     TilesRevealed ~ dgamma(shape, rate),
+#     shape <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s,
+#     bC ~ dnorm(0, 10),
+#     bE ~ dnorm(0, 10),
+#     bCE ~ dnorm(0, 10),
+#     bNs ~ dnorm(0, 10),
+#     a ~ dgamma(1, 0.05),
+#     a_player[ID_Player] ~ dnorm(0, sigma_player),
+#     sigma_player ~ dgamma(1.5, 0.05),
+#     rate ~ dgamma(1, 0.05)
+#   ), data=data.c, start=list(rate = 0.1, bC = 0, bE = 0, bCE = 0, bNs = 0),  
+#   control=list(max_treedepth = 15), iter=10000, chains=3, cores=4, warmup=500)
+# 
+# save(m.2.b.gamma, file = "m.2.b.gamma.RData")
 
-precis(m.2.b.gamma)
-pairs(m.2.b.gamma, pars=c("bC", "bCE", "bNs", "a"))
-plot(m.2.b.gamma)
-
-save(m.2.b.gamma, file = "m.2.b.gamma.RData")
 load("m.2.b.gamma.RData")
 
 df_HPDI_tiles <- data.frame(c_low = rep(0, 200), c_high = rep(0, 200), ce_low = rep(0, 200), ce_high = rep(0, 200),
@@ -272,7 +271,7 @@ for(runs in 1:200) {
   df_guess_full <- do.call(rbind, df_guess_list)
   
   #generate simulated mean tilesrevealed for 200 players
-  df_guess_full$mean_tiles <- NA
+  df_guess_full$tiles_shape.m <- NA
   
   for(i in 1:nrow(df_guess_full)) {
     
@@ -281,11 +280,12 @@ for(runs in 1:200) {
       post$bNs[i]*df_guess_full$n_major.s[i]
   }
   
-  #generate individual-level data for each participant
-  df_guess_full$TilesRevealed <- rgamma(nrow(df_guess_full), shape = df_guess_full$tiles_shape.m, rate = post$rate)
+  #changes negative values to 0
+  df_guess_full$tiles_shape.m[df_guess_full$tiles_shape.m < 0] <- 0
   
-  #round tiles less than 0 to be 0
-  df_guess_full$TilesRevealed[df_guess_full$TilesRevealed < 0] <- 0
+  #generate individual-level data for each participant
+  df_guess_full$TilesRevealed <- rgamma(nrow(df_guess_full), shape = df_guess_full$tiles_shape.m, 
+                                        rate = post$rate[1:nrow(df_guess_full)])
   
   #subset data frame for analysis
   df <- df_guess_full[,c("id", "competition", "effort", "n_major.s", "TilesRevealed")]
@@ -304,11 +304,11 @@ for(runs in 1:200) {
         a_player[id] ~ dnorm(0, sigma_player),
         sigma_player ~ dgamma(1.5, 0.05),
         sigma ~ dgamma(2, 0.5)
-      ), data=df, iter=3000, chains=3, cores = 4, warmup=500)
+      ), data=df, iter=4500, chains=3, cores = 4, warmup=500)
     
     samples <- extract.samples(m.2.power)
   } else if(runs > 1) {
-    m_list[[runs]] <- map2stan(m.2.power, data=df, iter=3000, chains=3, cores=4, warmup=500)
+    m_list[[runs]] <- map2stan(m.2.power, data=df, iter=4500, chains=3, cores=4, warmup=500)
     samples <- extract.samples(m_list[[runs]])
   }
   
@@ -320,7 +320,7 @@ for(runs in 1:200) {
   df_HPDI_tiles$c_plusce_high[runs] <- HPDI(samples$bC + samples$bCE, prob = 0.95)[2]
   
   #saving 
-  save(df_HPDI_tiles, file = "df_HPDI_tiles_gamma1.RData")
+  save(df_HPDI_tiles, file = "df_HPDI_tiles_g95.RData")
   
   ##shuffling samples from m.2.b
   post_a_player <- post["a_player"] # just samples for intercept values for each player
@@ -342,9 +342,24 @@ for(runs in 1:200) {
   names(post)[open_spot] <- "a_player"
 }
 
+###Ropes for tiles####
+load("HPDI_tiles_full.RData")
+
+##ROPE for C
+ggplot(HPDI_tiles, aes(x = 1:200)) + 
+  geom_errorbar(aes(ymax = c_high, ymin = c_low))
+
+sum(HPDI_tiles$c_high > -0.8)
+
+#ROPE for CE
+ggplot(HPDI_tiles, aes(x = 1:200)) + 
+  geom_errorbar(aes(ymax = ce_high, ymin = ce_low))
+
+sum(HPDI_tiles$ce_low > 0.01)
+
 #####
-#Effect of competition on time to guess for a single math problem
-#####
+###Effect of competition on time to guess for a single math problem#####
+######
 
 #model for below power analysis
 # m.mathtime <- map2stan(
@@ -498,7 +513,52 @@ for(runs in 1:200) {
   names(post)[open_spot] <- "a_player"
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #####
+#Frequentist Power Analysis
+######
+# 
+# #tilesrevealed: observed power
+# f.tiles <- lmer(TilesRevealed ~ Competition*Effort + n_major.s + (1|ID_Player),
+#                  data=data.c, REML=FALSE)
+# 
+# fixef(f.tiles)["Competition:Effort"] #3.66 - estimated fixed effect
+# 
+# print(powerSim(f.tiles, fixed(xname="Competition:Effort", 
+#                                method="z"))) 
+# 
+# #observed power for different sample sizes
+# f.tiles.extended <- extend(f.tiles, along="ID_Player", n=200) 
+# xtabs(~ID_Player, data=attributes(f.tiles.extended)$newData) #checks to make sure
+# pc.i <- powerCurve(f.tiles.extended, along="ID_Player", breaks=seq(100, 200, by = 100), 
+#                    fixed(xname="Competition:Effort", method="z"), seed=12, nsim=500)
+# print(pc.i)
+# 
+# #observed power for different sample sizes when changing the effect size
+# f.tiles.extended <- extend(f.tiles, along="ID_Player", n=200) 
+# fixef(f.tiles.extended)["Competition:Effort"] <- 2 #making effect half as small
+# pc.i <- powerCurve(f.tiles.extended, along="ID_Player", breaks=seq(100, 200, by = 100), 
+#                    fixed(xname="Competition:Effort", method="z"), seed=12, nsim=500)
+# print(pc.i)
+# 
+# #####
 #Effect of competition and effort on time until guessing 
 #use model m.1.b
 # ####
