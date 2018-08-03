@@ -130,15 +130,15 @@ crv <- df$Curve[z]
         
      for(i in 1:opt_tiles) {
        Reward_wait[i] <- 
-         ((Information_Subset[crv,i] * (TimeStep/i)) - (1 * ((1-Information_Subset[crv,i])*(TimeStep/i)))) 
+         ((Information_Subset[crv,i]  - (1 * ((1-Information_Subset[crv,i])))))
      }
 
 if(opt_tiles < 25) {
     for(i in (opt_tiles+1):25) {
-      Reward_wait[i] <- (1 * (1 - Information_Subset[crv,opt_tiles] ) * (Information_Subset[crv,i] * (TimeStep/i)))
-                                        - (1 * (1 - Information_Subset[crv,opt_tiles] ) * (TimeStep/i))
+      Reward_wait[i] <- (1 * (1 - Information_Subset[crv,opt_tiles] ) * (Information_Subset[crv,i]))
+                                        - (1 * (1 - Information_Subset[crv,opt_tiles]) * (1 - Information_Subset[curv, i]))
     } }
- 
+
 Reward_list[[z]] <- Reward_wait 
 }
 
@@ -162,6 +162,7 @@ pp <- ggplot(df_payoff, aes(Tiles, NYellow, Payoff)) +
   scale_fill_viridis(name = "Expected \nPayoff")  + 
   theme_bw()  +
   #eliminates background, gridlines, and chart border
+  ggtitle("SD = 0") +
   theme(
     plot.background = element_blank()
     ,panel.grid.major = element_blank()
@@ -181,13 +182,14 @@ pp
 
 df <- as.data.frame(cbind(Curve, Optimal_Tiles_Revealed))
 Reward_list <- list()
+sd <- 5 # change to increase or decrease uncertainty in when an opponent guesses
 
 for(z in 1:nrow(df)) {
   
   Reward_wait <- NULL
   all_rewards <- NULL
   
-  opt_tiles <- round(rnorm(1e4, mean = df$Optimal_Tiles_Revealed[z], sd = 3))
+  opt_tiles <- round(rnorm(1e4, mean = df$Optimal_Tiles_Revealed[z], sd = sd))
   opt_tiles <- pmax(opt_tiles, 1)
   opt_tiles <- pmin(opt_tiles, 25)
   
@@ -197,13 +199,13 @@ for(z in 1:nrow(df)) {
     
     for(i in 1:opt_tiles[opp_guess]) {
       Reward_wait[i] <- 
-        ((Information_Subset[crv,i] * (TimeStep/i)) - (1 * ((1-Information_Subset[crv,i])*(TimeStep/i)))) 
+        ((Information_Subset[crv,i] )) - (1 * ((1-Information_Subset[crv,i])))
     }
     
     if(opt_tiles[opp_guess] < 25) {
       for(i in (opt_tiles[opp_guess]+1):25) {
-        Reward_wait[i] <- (1 * (1 - Information_Subset[crv,opt_tiles[opp_guess]] ) * (Information_Subset[crv,i] * (TimeStep/i)))
-        - (1 * (1 - Information_Subset[crv,opt_tiles[opp_guess]] ) * (TimeStep/i))
+        Reward_wait[i] <- (1 * (1 - Information_Subset[crv,opt_tiles[opp_guess]] ) * (Information_Subset[crv,i]))
+        - (1 * (1 - Information_Subset[crv,opt_tiles[opp_guess]] * (1 - Information_Subset[curv, i])))
       } }
     
     all_rewards <- c(all_rewards, Reward_wait)
@@ -221,10 +223,6 @@ Curve_8yellow <- data.frame(Payoff = Reward_list[[1]], Tiles = 1:25)
 Curve_10yellow <- data.frame(Payoff = Reward_list[[2]], Tiles = 1:25)
 Curve_12yellow <- data.frame(Payoff = Reward_list[[3]], Tiles = 1:25)  
 
-which.max(Curve_8yellow)
-which.max(Curve_10yellow)
-which.max(Curve_12yellow)
-
 plot(Curve_8yellow$Tiles, Curve_8yellow$Payoff)
 plot(Curve_10yellow$Tiles, Curve_10yellow$Payoff)
 plot(Curve_12yellow$Tiles, Curve_12yellow$Payoff)
@@ -240,6 +238,7 @@ pp <- ggplot(df_payoff, aes(Tiles, NYellow, Payoff)) +
   scale_x_continuous(name = "Number of Tiles Revealed by Player", expand = c(0, 0)) +
   scale_fill_viridis(name = "Expected \nPayoff")  + 
   theme_bw()  +
+  ggtitle("SD = 5") +
   #eliminates background, gridlines, and chart border
   theme(
     plot.background = element_blank()
