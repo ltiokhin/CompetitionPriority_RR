@@ -74,13 +74,10 @@ length(all_playerfirst)
 all_compfirst <- all_compfirst[!is.na(all_compfirst)]
 all_playerfirst <- all_playerfirst[!is.na(all_playerfirst)]
 
-sum(all_compfirst) / length(all_compfirst)
-sum(all_playerfirst) / length(all_playerfirst)
-
+sum(all_compfirst) / length(all_compfirst) # weighted-average expected payoff when competitor guesses first
+sum(all_playerfirst) / length(all_playerfirst) # weighted-average expected payoff when player guesses first
 #############################
 #############################
-
-
 
 #   
 #   Rewards_list[[length(Rewards_list)+1]] <- Reward_p_compfirst
@@ -114,9 +111,13 @@ sum(all_playerfirst) / length(all_playerfirst)
 # Curve_Plots[[2]]
 # Curve_Plots[[3]]
 
-#assuming that the opponent (i.e. player in the no-competition condition) plays optimally 
-#(i.e. get the value from Optimal_Tiles_Revealed); then for this value, calculate the expected payoff \
-#to a participant who guesses after 1:25 tiles, and store this in a dataframe
+
+#############################
+#############################
+
+#assuming that the opponent (i.e. player in the no-competition condition) plays optimally, 
+#then what is the expected payoff to players in the competition condition for guessing after revealing 
+#anywhere from 1:25 tiles? 
 
 df <- as.data.frame(cbind(Curve, Optimal_Tiles_Revealed))
 Reward_wait <- NULL
@@ -129,13 +130,13 @@ crv <- df$Curve[z]
         
      for(i in 1:opt_tiles) {
        Reward_wait[i] <- 
-         ((Information_Subset[crv,i] * (TimeStep/i)) - (1 * ((1-Information_Subset[crv,i])*(TimeStep/i)))) * (i/ (i + TilesWait)) 
+         ((Information_Subset[crv,i] * (TimeStep/i)) - (1 * ((1-Information_Subset[crv,i])*(TimeStep/i)))) 
      }
 
 if(opt_tiles < 25) {
     for(i in (opt_tiles+1):25) {
       Reward_wait[i] <- (1 * (1 - Information_Subset[crv,opt_tiles] ) * (Information_Subset[crv,i] * (TimeStep/i)))
-                                        - (1 * (1 - Information_Subset[crv,opt_tiles] ) * (TimeStep/i) * (i/ (i + TilesWait)))
+                                        - (1 * (1 - Information_Subset[crv,opt_tiles] ) * (TimeStep/i))
     } }
  
 Reward_list[[z]] <- Reward_wait 
@@ -150,14 +151,15 @@ plot(Curve_10yellow$Tiles, Curve_10yellow$Payoff)
 plot(Curve_12yellow$Tiles, Curve_12yellow$Payoff)
 
 df_payoff <- rbind(Curve_8yellow, Curve_10yellow, Curve_12yellow)
-df_payoff$NYellow <- c(rep(8, 25), rep(10, 25), rep(12, 25))
+df_payoff$NYellow <- c(rep(17, 25), rep(15, 25), rep(13, 25))
 
 #plotting
 pp <- ggplot(df_payoff, aes(Tiles, NYellow, Payoff)) +
   geom_raster(aes(fill = Payoff), interpolate = FALSE) +
-  scale_y_continuous(name = "Number Yellow Tiles", expand = c(0, 0), breaks = c(8, 10, 12)) +
-  scale_x_continuous(name = "Total Tiles Revealed", expand = c(0, 0)) +
-  scale_fill_viridis(name = "Payoff")  + 
+  scale_y_continuous(name = "Tile Ratio", expand = c(0, 0), breaks = c(17, 15, 13), 
+                     labels = c("8:17", "10:15", "12:13")) +
+  scale_x_continuous(name = "Number of Tiles Revealed by Player", expand = c(0, 0)) +
+  scale_fill_viridis(name = "Expected \nPayoff")  + 
   theme_bw()  +
   #eliminates background, gridlines, and chart border
   theme(
@@ -169,5 +171,79 @@ pp <- ggplot(df_payoff, aes(Tiles, NYellow, Payoff)) +
 
 pp
 
+#############################
+#############################
+
+#assuming that an opponent does not play a fixed strategy, but instead chooses how
+#many tiles to reveal by drawing a random number from a normal distribution centered
+#around the optimal number of tiles, what is the expected payoff to players who
+#guess after anywhere from 1:25 tiles?
+
+df <- as.data.frame(cbind(Curve, Optimal_Tiles_Revealed))
+Reward_list <- list()
+
+for(z in 1:nrow(df)) {
+  
+  Reward_wait <- NULL
+  all_rewards <- NULL
+  
+  opt_tiles <- round(rnorm(1e4, mean = df$Optimal_Tiles_Revealed[z], sd = 3))
+  opt_tiles <- pmax(opt_tiles, 1)
+  opt_tiles <- pmin(opt_tiles, 25)
+  
+  crv <- df$Curve[z]
+  
+  for(opp_guess in 1:length(opt_tiles)){
+    
+    for(i in 1:opt_tiles[opp_guess]) {
+      Reward_wait[i] <- 
+        ((Information_Subset[crv,i] * (TimeStep/i)) - (1 * ((1-Information_Subset[crv,i])*(TimeStep/i)))) 
+    }
+    
+    if(opt_tiles[opp_guess] < 25) {
+      for(i in (opt_tiles[opp_guess]+1):25) {
+        Reward_wait[i] <- (1 * (1 - Information_Subset[crv,opt_tiles[opp_guess]] ) * (Information_Subset[crv,i] * (TimeStep/i)))
+        - (1 * (1 - Information_Subset[crv,opt_tiles[opp_guess]] ) * (TimeStep/i))
+      } }
+    
+    all_rewards <- c(all_rewards, Reward_wait)
+    Reward_wait <- NULL
+  } 
+
+payoffs_to_player <- matrix(all_rewards, nrow = length(opt_tiles), byrow = TRUE)
+
+# average reward to player for guessing anywhere from 1:25 tiles when there is uncertainty about when opponent guesses
+Reward_list[[z]] <-colMeans(payoffs_to_player)
+
+   }
+
+Curve_8yellow <- data.frame(Payoff = Reward_list[[1]], Tiles = 1:25)
+Curve_10yellow <- data.frame(Payoff = Reward_list[[2]], Tiles = 1:25)
+Curve_12yellow <- data.frame(Payoff = Reward_list[[3]], Tiles = 1:25)  
+
+plot(Curve_8yellow$Tiles, Curve_8yellow$Payoff)
+plot(Curve_10yellow$Tiles, Curve_10yellow$Payoff)
+plot(Curve_12yellow$Tiles, Curve_12yellow$Payoff)
+
+df_payoff <- rbind(Curve_8yellow, Curve_10yellow, Curve_12yellow)
+df_payoff$NYellow <- c(rep(17, 25), rep(15, 25), rep(13, 25))
+
+#plotting
+pp <- ggplot(df_payoff, aes(Tiles, NYellow, Payoff)) +
+  geom_raster(aes(fill = Payoff), interpolate = FALSE) +
+  scale_y_continuous(name = "Tile Ratio", expand = c(0, 0), breaks = c(17, 15, 13), 
+                     labels = c("8:17", "10:15", "12:13")) +
+  scale_x_continuous(name = "Number of Tiles Revealed by Player", expand = c(0, 0)) +
+  scale_fill_viridis(name = "Expected \nPayoff")  + 
+  theme_bw()  +
+  #eliminates background, gridlines, and chart border
+  theme(
+    plot.background = element_blank()
+    ,panel.grid.major = element_blank()
+    ,panel.grid.minor = element_blank()
+    ,panel.border = element_blank() , 
+    plot.title = element_text(hjust = 0.5))
+
+pp
 
 
