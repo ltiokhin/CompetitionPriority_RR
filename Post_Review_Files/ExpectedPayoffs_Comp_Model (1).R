@@ -221,6 +221,10 @@ Curve_8yellow <- data.frame(Payoff = Reward_list[[1]], Tiles = 1:25)
 Curve_10yellow <- data.frame(Payoff = Reward_list[[2]], Tiles = 1:25)
 Curve_12yellow <- data.frame(Payoff = Reward_list[[3]], Tiles = 1:25)  
 
+which.max(Curve_8yellow)
+which.max(Curve_10yellow)
+which.max(Curve_12yellow)
+
 plot(Curve_8yellow$Tiles, Curve_8yellow$Payoff)
 plot(Curve_10yellow$Tiles, Curve_10yellow$Payoff)
 plot(Curve_12yellow$Tiles, Curve_12yellow$Payoff)
