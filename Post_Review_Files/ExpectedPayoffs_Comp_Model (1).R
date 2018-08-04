@@ -2,6 +2,7 @@ library(ggplot2)
 library(reshape2)
 library(viridisLite)
 library(viridis)
+library(RColorBrewer)
 
 
 setwd() #set to location of data file
@@ -10,7 +11,7 @@ load('ScriptInformation2_25tiles_500sims.RData')
 
 N_Tiles <- ncol(InformationFinal)
 plot(NULL, xlab = 'Number of tiles revealed', ylab ='Average Information', xlim =c(0,N_Tiles),  ylim = c(0.5,1))
-Color <- c("blue","red", "black")
+Color <- c("#e0ecf4","#9ebcda", "#8856a7")
 Information_Subset <- InformationFinal[c(1, 3, 5),]
 
 for (i in 1:length(Color)){
@@ -19,8 +20,9 @@ for (i in 1:length(Color)){
 ############
 #Expected Payoffs for Individual Players
 ############
-plot(NULL, xlab = 'Average number of tiles revealed', ylab ='Reward', xlim =c(0,N_Tiles), ylim=c(0, 50))
+plot(NULL, xlab = 'Number of Tiles Revealed', ylab ='Reward', xlim =c(0,N_Tiles), ylim=c(0, 50))
 Curve <- c(1, 2, 3) #Curve 1 is 8 yellow; Curve 2 is 10 yellow; Curve 3 is 12 yellow
+Color <- c("#8856a7","#9ebcda", "#e0ecf4")
 Reward_wait <- NULL
 Optimal_Tiles_Revealed <- NULL
 TimeStep <- 60 * 20 #length of experiment
@@ -30,11 +32,18 @@ TilesWait <- 5 # 5 second waiting time between each problem
   for(i in 1 : N_Tiles) {
     Reward_wait[i] <- 
       ((Information_Subset[curv,i] * (TimeStep/i)) - (1 * ((1-Information_Subset[curv,i])*(TimeStep/i)))) * (i/ (i + TilesWait)) 
+    
+  }
+lines(Reward_wait, type = 'l', col = Color[curv], lwd = 3 )
+Optimal_Tiles_Revealed[curv] <- which.max(Reward_wait)
   }
 
-lines(Reward_wait, type = 'l', col = Color[curv])
-Optimal_Tiles_Revealed[curv] <- which.max(Reward_wait)
-}
+Color <- c("#e0ecf4","#9ebcda", "#8856a7")
+legend(0.1, 50, title="Effect Size", legend=c("Small", "Medium", "Large"), 
+       col=c(Color), lty=1, lwd=3)
+
+
+
 
 #####################
 #How competition affects payoff
