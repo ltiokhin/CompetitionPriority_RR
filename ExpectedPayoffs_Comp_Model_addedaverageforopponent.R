@@ -132,6 +132,14 @@ for(z in 1:nrow(df)) {
   Reward_list[[z]] <- Reward_wait 
 }
 
+##averaging across different tile-ratios; including this assumes that a player has no information whatsoever about the
+#underlying tile ratio and they just try to maximize their expected payoff across the 3 different possible tile ratios that they
+#encounter
+list_f <- rbind(Reward_list[[1]], Reward_list[[2]],Reward_list[[3]])
+list_f <- as.matrix(list_f)
+reward_comp_f <- colMeans(list_f) #average reward to opponent across all tiles
+average_against_opp <- which.max(reward_comp_f)
+
 Curve_8yellow <- data.frame(Payoff = Reward_list[[1]], Tiles = 1:25)
 Curve_10yellow <- data.frame(Payoff = Reward_list[[2]], Tiles = 1:25)
 Curve_12yellow <- data.frame(Payoff = Reward_list[[3]], Tiles = 1:25)  
@@ -139,6 +147,9 @@ Curve_12yellow <- data.frame(Payoff = Reward_list[[3]], Tiles = 1:25)
 plot(Curve_8yellow$Tiles, Curve_8yellow$Payoff)
 plot(Curve_10yellow$Tiles, Curve_10yellow$Payoff)
 plot(Curve_12yellow$Tiles, Curve_12yellow$Payoff)
+#plotting average; obvious that, if you have no information at all about which effect you are encountering, then you should
+#guess as late as possible. 
+plot(1:25, reward_comp_f)
 
 df_payoff <- rbind(Curve_8yellow, Curve_10yellow, Curve_12yellow)
 df_payoff$NYellow <- c(rep(17, 25), rep(15, 25), rep(13, 25))
