@@ -82,43 +82,142 @@ for(comp in 1:length(Competitor_Tile)) {
   Rewards_Curves[[curv]]$PlayerTiles <- rep(1:25, 25)
 }
 #plotting
-Curve_Plots <- list()
-ytiles <- c(8, 10, 12)
-ratio <- c("8:17", "10:15", "12:13")
-for(i in 1:length(Rewards_Curves)) {
-  
-  pp <- ggplot(Rewards_Curves[[i]], aes(L1, PlayerTiles, value)) +
-    geom_raster(aes(fill = value), interpolate = FALSE) +
-    scale_x_continuous(name = "Number of Tiles Revealed by Opponent", expand = c(0, 0)) +
-    scale_y_continuous(name = "Number of Tiles Revealed by Player in Competition Treatment", expand = c(0, 0)) +
-    scale_fill_viridis(name = "Player \nPayoff\n ", limits=c(0, 1), breaks=c(0, 0.25, 0.5, 0.75, 1))  + 
-    ggtitle(paste(ratio[i], 'Tile Ratio')) +
-    theme_bw()  +
-    #eliminates background, gridlines, and chart border
-    theme(
-      plot.background = element_blank()
-      ,panel.grid.major = element_blank()
-      ,panel.grid.minor = element_blank()
-      ,panel.border = element_blank() , 
-      plot.title = element_text(hjust = 0.5))
-  Curve_Plots[[i]] <- pp
-}
-Curve_Plots[[1]]
-Curve_Plots[[2]]
-Curve_Plots[[3]]
+# Curve_Plots <- list()
+# ytiles <- c(8, 10, 12)
+# ratio <- c("8:17", "10:15", "12:13")
+# for(i in 1:length(Rewards_Curves)) {
+#   
+#   pp <- ggplot(Rewards_Curves[[i]], aes(L1, PlayerTiles, value)) +
+#     geom_raster(aes(fill = value), interpolate = FALSE) +
+#     scale_x_continuous(name = "Number of Tiles Revealed by Opponent", expand = c(0, 0)) +
+#     scale_y_continuous(name = "Number of Tiles Revealed by Player in Competition Treatment", expand = c(0, 0)) +
+#     scale_fill_viridis(name = "Player \nPayoff\n ", limits=c(0, 1), breaks=c(0, 0.25, 0.5, 0.75, 1))  + 
+#     ggtitle(paste(ratio[i], 'Tile Ratio')) +
+#     theme_bw()  +
+#     #eliminates background, gridlines, and chart border
+#     theme(
+#       plot.background = element_blank()
+#       ,panel.grid.major = element_blank()
+#       ,panel.grid.minor = element_blank()
+#       ,panel.border = element_blank() , 
+#       plot.title = element_text(hjust = 0.5))
+#   Curve_Plots[[i]] <- pp
+# }
+# Curve_Plots[[1]]
+# Curve_Plots[[2]]
+# Curve_Plots[[3]]
 
 ##########################
 #evolution towards equilibrium
 ######################
-#big effect
-
-#columns are number of tiles revealed by an opponent
-#rows are number of tiles revealed by a player
 payoffs_m_1 <- matrix(Rewards_Curves[[1]]$value, nrow = 25)
 
 #player 3, opponent 17 is:
-payoffs_m_1[3, 17]
-payoffs_m_1[17, 3]
+# payoffs_m_1[3, 17]
+# payoffs_m_1[17, 3]
+
+###################
+# function to play a vector of scientists against each other #####
+#######################
+lifespan <- 100
+
+#probability of removing anywhere from 1 to 25 tiles
+playera <- runif(25, 0, 1)
+playerb <- runif(25, 0, 1)
+playera <- round(playera / sum(playera), 2)
+playerb <- round(playerb / sum(playerb), 2)
+
+play_ess <- function(playera, playerb) {
+  
+  payoffs <- rep(0, 2)
+
+  for(i in 1:lifespan) {
+    
+    tile_a <- sample(1:25, 1, prob = playera)
+    tile_b <- sample(1:25, 1, prob = playerb)
+    
+    payoffs[1] <- payoffs[1] + payoffs_m_1[tile_a, tile_b]
+    payoffs[2] <- payoffs[2] + payoffs_m_1[tile_b, tile_a]
+    
+}
+  return(payoffs) 
+}
+
+##################
+#EVOLUTIONARY SIMULATION - NO ZERO INFLATION
+################
+run_simulation <- function(N, RR, G, R) {
+  
+  popsize <- N # sets population size
+  rounds <- RR # how many other scientists each scientist faces per generation
+  gens <- G # number of generations
+  repeats <- R # number of simulations for every unique combo of effect and startup cost
+  
+    eq.tileprob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
+    eq.totalfitness <- vector()
+            
+            mean_tile_prob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
+            mean_total_fitness <- rep(0, gens)
+            all_players <- matrix(rep(0, 25), nrow = popsize, ncol = 25)
+            
+            for(rep in 1:repeats) {
+              
+              # initialize the population, for each repeat. Each player is a row in the matrix. 
+              for(i in 1:popsize){
+                playr <- runif(25, 0, 1)
+                all_players[i,] <- round(playr / sum(playr), 2)
+              }
+              # start looping
+              for (gen in 1:gens) {
+                
+                #make sure fitness values are 0 at the start of each generation
+                fitness <- rep(0.0000001, popsize)
+                
+                for (round in 1:rounds) {
+                  # for each round randomize the partners
+                  indexes <- sample(1:popsize, size=popsize)
+                  all_players <- all_players[indexes,]
+                  fitness <- fitness[indexes]
+                  
+                  for (i in 1:(popsize/2)) {
+                    # pairs play against each other
+                    competitor_a <- all_players[(i*2 - 1),]
+                    competitor_b <- all_players[(2*i),]
+                    dum <- play_ess(competitor_a, competitor_b)
+                    fitness[(i*2 - 1):(2*i)] <- fitness[(i*2 - 1):(2*i)] + dum
+                  } # end of round
+                }
+                
+                #save state of the population sample sizes and fitness
+                mean_tile_prob[gen,] <- mean_tile_prob[gen,] + apply(all_players, 2, mean)
+                mean_total_fitness[gen] <- mean_total_fitness[gen] + sum(fitness)
+                
+                # calculate fitness and manage reproduction
+                fitness2 <- fitness/sum(fitness)
+                ss <- sample(1:nrow(all_players), size = popsize, replace=TRUE, prob=fitness2)
+                all_players <- all_players[ss,]
+                
+                for(i in 1:popsize){
+                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.04)
+                  all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
+                  all_players[i,] <- round(all_players[i,] / sum(all_players[i,]), 2)
+                }
+
+              } # end of all generations
+              eq.tileprob <- c(eq.tileprob, mean_tile_prob[gens,])
+              eq.totalfitness <- c(eq.totalfitness, sum(fitness))
+            } 
+            # end of repeat
+              mean_tile_prob <- mean_tile_prob/repeats
+              mean_total_fitness <- mean_total_fitness/repeats
+
+  results <- data.frame(eq.samplecost, eq.startupcost, eq.exprate, eq.competitors, eq.samplesize, eq.totalfitness, eq.b_two)
+  return(list(mean_ss, lower_ss, upper_ss, mean_total_fitness, results))
+}
+
+
+
+
 
   
 
