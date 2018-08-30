@@ -198,7 +198,7 @@ run_simulation <- function(N, RR, G, R) {
                 all_players <- all_players[ss,]
                 
                 for(i in 1:popsize){
-                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.04)
+                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.05)
                   all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
                   all_players[i,] <- round(all_players[i,] / sum(all_players[i,]), 2)
                 }
@@ -207,13 +207,18 @@ run_simulation <- function(N, RR, G, R) {
               eq.tileprob <- c(eq.tileprob, mean_tile_prob[gens,])
               eq.totalfitness <- c(eq.totalfitness, sum(fitness))
             } 
-            # end of repeat
+            # end of repeats
               mean_tile_prob <- mean_tile_prob/repeats
               mean_total_fitness <- mean_total_fitness/repeats
+              
+              print(mean_tile_prob)
+              print(mean_total_fitness)
 
-  results <- data.frame(eq.samplecost, eq.startupcost, eq.exprate, eq.competitors, eq.samplesize, eq.totalfitness, eq.b_two)
-  return(list(mean_ss, lower_ss, upper_ss, mean_total_fitness, results))
+  return(list(mean_tile_prob, mean_total_fitness, mean_tile_prob[gens,], mean_total_fitness[gens]))
 }
+
+#                               popsize, rounds, generations, repeats
+results_1species <- run_simulation(100,     5,      500,        2)
 
 
 
