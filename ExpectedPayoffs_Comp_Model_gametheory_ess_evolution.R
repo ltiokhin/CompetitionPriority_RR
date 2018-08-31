@@ -232,8 +232,7 @@ for(i in c(1, 100, 200, 300, 400)){
 ###take home message when populations are mixed - - - nothing happens
 ######################
 
-
-##################
+#################
 #1 species; mixed strategies; 15:25
 #This shit works. Everyone goes to guessing the smallest number of allowable tiles, 15 or 16. 
 ################
@@ -315,11 +314,107 @@ aaa <- run_simulation_15_25(100,     3,     1000,        3)
 
 for(i in seq(1, 1000, by = 50)){
   
-  plot(1:25, aaa[[1]][i,], ylim = c(0, 0.8), main = i)
+  plot(1:25, aaa[[1]][i,], ylim = c(0, 0.8), main = i, type = "b")
   
 }
 
 
+###fixed strategy play ess###
+
+play_ess_fixed <- function(tile_a, tile_b) {
+  
+  payoffs <- rep(0, 2)
+  
+  for(i in 1:2) {
+    
+    payoffs[1] <- payoffs[1] + payoffs_m_1[tile_a, tile_b]
+    payoffs[2] <- payoffs[2] + payoffs_m_1[tile_b, tile_a]
+    
+  }
+  return(payoffs) 
+}
+
+
+#################
+#1 species; fixed strategies
+################
+run_simulation_fixed <- function(N, RR, G, R) {
+  
+  popsize <- N # sets population size
+  rounds <- RR # how many other scientists each scientist faces per generation
+  gens <- G # number of generations
+  repeats <- R # number of simulations for every unique combo of effect and startup cost
+
+  eq.tiles <- matrix(rep(0, popsize), nrow = repeats, ncol = popsize)
+  eq.totalfitness <- vector()
+  mean_tiles <- vector()
+  all_players <- vector()
+
+  for(rep in 1:repeats) {
+    
+    everyone_tiles <- matrix(rep(0, popsize), nrow = gens, ncol = popsize)
+    
+    # initialize the population, for each repeat. Each player is a row in the matrix. 
+    all_players <- round(runif(popsize, 1, 25), 0)
+    
+    # start looping
+    for (gen in 1:gens) {
+      
+      #make sure fitness values are 0 at the start of each generation
+      fitness <- rep(0.0000001, popsize)
+      
+      for (round in 1:rounds) {
+        # for each round randomize the partners
+        indexes <- sample(1:popsize, size=popsize)
+        all_players <- all_players[indexes]
+        fitness <- fitness[indexes]
+        
+        for (i in 1:(popsize/2)) {
+          # pairs play against each other
+          competitor_a <- all_players[(i*2 - 1)]
+          competitor_b <- all_players[(2*i)]
+          dum <- play_ess_fixed(competitor_a, competitor_b)
+          fitness[(i*2 - 1):(2*i)] <- fitness[(i*2 - 1):(2*i)] + dum
+        } # end of round
+      }
+      #save state of the population sample sizes and fitness
+      everyone_tiles[gen,] <- everyone_tiles[gen,] + all_players
+
+      # calculate fitness and manage reproduction
+      fitness2 <- fitness/sum(fitness)
+      all_players <- sample(all_players, size = popsize, replace=TRUE, prob=fitness2)
+        all_players <- all_players + rnorm(length(all_players), 0, 2)
+        all_players <- round(all_players, 0)
+        all_players <- pmin(pmax(all_players, 1), 25)
+
+    } # end of all generations
+    eq.tiles[rep,] <- everyone_tiles[gen,]
+  }
+  # end of repeats
+  mean_tiles <- apply(eq.tiles, 2, mean)
+
+  return(list(everyone_tiles, eq.tiles, mean_tiles))
+}
+
+aaa <- run_simulation_fixed(200,     20,     2000,        10)
+
+for(i in seq(1, 2000, by = 100)){
+  
+  hist(aaa[[1]][i,], main = paste("generation", i), 
+       breaks = c(1:25))
+  
+}
+
+##plotting the distribution of sample sizes at the end of 2000 generations of evolution
+
+for(i in 1:10){
+  
+  hist(aaa[[2]][i,], main = paste("repeat", i), 
+       breaks = c(1:25))
+  
+}
+
+?hist
 
 
 
