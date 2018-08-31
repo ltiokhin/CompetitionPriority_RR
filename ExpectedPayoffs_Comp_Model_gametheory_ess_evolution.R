@@ -72,9 +72,9 @@ for(comp in 1:length(Competitor_Tile)) {
       Reward_player[player] <- (1 * Information_Subset[curv, player]) - (1 * (1 - Information_Subset[curv, player]))
     }
     
-    if(comp == player) {          #when playerers guess at same time, multiply player guessing first payoff by one half
-      Reward_player[player] <- (0.5) * ((1 * Information_Subset[curv, player]) - (1 * (1 - Information_Subset[curv, player])))
-    }
+    if(comp == player) {          #when players guess at same time,
+      Reward_player[player] <- 0.5 * Information_Subset[curv, player]^2 - ((1 - Information_Subset[curv, player])^2) 
+            }
   }
   Rewards_list[[comp]] <- Reward_player
 }
@@ -112,6 +112,8 @@ for(comp in 1:length(Competitor_Tile)) {
 ######################
 payoffs_m_1 <- matrix(Rewards_Curves[[1]]$value, nrow = 25)
 
+payoffs_m_1[,16]
+
 #player 3, opponent 17 is:
 # payoffs_m_1[3, 17]
 # payoffs_m_1[17, 3]
@@ -122,11 +124,6 @@ payoffs_m_1 <- matrix(Rewards_Curves[[1]]$value, nrow = 25)
 lifespan <- 100
 
 #probability of removing anywhere from 1 to 25 tiles
-playera <- runif(25, 0, 1)
-playerb <- runif(25, 0, 1)
-playera <- round(playera / sum(playera), 2)
-playerb <- round(playerb / sum(playerb), 2)
-
 play_ess <- function(playera, playerb) {
   
   payoffs <- rep(0, 2)
@@ -144,7 +141,7 @@ play_ess <- function(playera, playerb) {
 }
 
 ##################
-#EVOLUTIONARY SIMULATION - NO ZERO INFLATION
+#1 species; mixed strategies; 1:25
 ################
 run_simulation <- function(N, RR, G, R) {
   
@@ -165,7 +162,7 @@ run_simulation <- function(N, RR, G, R) {
               # initialize the population, for each repeat. Each player is a row in the matrix. 
               for(i in 1:popsize){
                 playr <- runif(25, 0, 1)
-                all_players[i,] <- round(playr / sum(playr), 2)
+                all_players[i,] <- round(playr / sum(playr), 3)
               }
               # start looping
               for (gen in 1:gens) {
@@ -198,11 +195,11 @@ run_simulation <- function(N, RR, G, R) {
                 all_players <- all_players[ss,]
                 
                 for(i in 1:popsize){
-                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.05)
+                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.01)
                   all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
-                  all_players[i,] <- round(all_players[i,] / sum(all_players[i,]), 2)
+                  all_players[i,] <- all_players[i,] / sum(all_players[i,])
                 }
-
+                
               } # end of all generations
               eq.tileprob <- c(eq.tileprob, mean_tile_prob[gens,])
               eq.totalfitness <- c(eq.totalfitness, sum(fitness))
@@ -210,21 +207,161 @@ run_simulation <- function(N, RR, G, R) {
             # end of repeats
               mean_tile_prob <- mean_tile_prob/repeats
               mean_total_fitness <- mean_total_fitness/repeats
-              
-              print(mean_tile_prob)
-              print(mean_total_fitness)
 
-  return(list(mean_tile_prob, mean_total_fitness, mean_tile_prob[gens,], mean_total_fitness[gens]))
+  return(list(mean_tile_prob))
 }
 
 #                               popsize, rounds, generations, repeats
-results_1species <- run_simulation(100,     5,      500,        2)
+results_1species_1 <- run_simulation(100,     2 ,     1000,        4)
+results_1species_2 <- run_simulation(100,     5,      1000,        4)
+results_1species_3 <- run_simulation(100,     5,      1000,        4)
+results_1species_4 <- run_simulation(100,     5,      1000,        4)
 
-
-
-
-
+for(i in c(1, 100, 200, 300, 400, 500, 750, 1000)){
   
+plot(1:25, results_1species_2[[1]][i,], ylim = c(0, 0.2))
+  
+}
+
+for(i in c(1, 100, 200, 300, 400)){
+  
+  plot(1:25, aaa[[1]][i,], ylim = c(0, 0.2))
+  
+}
+
+###take home message when populations are mixed - - - nothing happens
+######################
+
+
+##################
+#1 species; mixed strategies; 15:25
+#This shit works. Everyone goes to guessing the smallest number of allowable tiles, 15 or 16. 
+################
+run_simulation_15_25 <- function(N, RR, G, R) {
+  
+  popsize <- N # sets population size
+  rounds <- RR # how many other scientists each scientist faces per generation
+  gens <- G # number of generations
+  repeats <- R # number of simulations for every unique combo of effect and startup cost
+  
+  eq.tileprob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
+  eq.totalfitness <- vector()
+  
+  mean_tile_prob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
+  mean_total_fitness <- rep(0, gens)
+  all_players <- matrix(rep(0, 25), nrow = popsize, ncol = 25)
+  
+  for(rep in 1:repeats) {
+    
+    # initialize the population, for each repeat. Each player is a row in the matrix. 
+    for(i in 1:popsize){
+      playr <- runif(25, 0, 1)
+      all_players[i,] <- round(playr / sum(playr), 3)
+    }
+    
+    #sets anything below tile of 14 to 0. 
+    all_players[,1:14] <- 0
+    
+    # start looping
+    for (gen in 1:gens) {
+      
+      #make sure fitness values are 0 at the start of each generation
+      fitness <- rep(0.0000001, popsize)
+      
+      for (round in 1:rounds) {
+        # for each round randomize the partners
+        indexes <- sample(1:popsize, size=popsize)
+        all_players <- all_players[indexes,]
+        fitness <- fitness[indexes]
+        
+        for (i in 1:(popsize/2)) {
+          # pairs play against each other
+          competitor_a <- all_players[(i*2 - 1),]
+          competitor_b <- all_players[(2*i),]
+          dum <- play_ess(competitor_a, competitor_b)
+          fitness[(i*2 - 1):(2*i)] <- fitness[(i*2 - 1):(2*i)] + dum
+        } # end of round
+      }
+      
+      #save state of the population sample sizes and fitness
+      mean_tile_prob[gen,] <- mean_tile_prob[gen,] + apply(all_players, 2, mean)
+      mean_total_fitness[gen] <- mean_total_fitness[gen] + sum(fitness)
+      
+      # calculate fitness and manage reproduction
+      fitness2 <- fitness/sum(fitness)
+      ss <- sample(1:nrow(all_players), size = popsize, replace=TRUE, prob=fitness2)
+      all_players <- all_players[ss,]
+      
+      for(i in 1:popsize){
+        all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.01)
+        all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
+        all_players[i,] <- all_players[i,] / sum(all_players[i,])
+      }
+      #sets all probabilities for tiles 14 or lower to 0. 
+      all_players[,1:14] <- 0
+      
+    } # end of all generations
+    eq.tileprob <- c(eq.tileprob, mean_tile_prob[gens,])
+    eq.totalfitness <- c(eq.totalfitness, sum(fitness))
+  } 
+  # end of repeats
+  mean_tile_prob <- mean_tile_prob/repeats
+  mean_total_fitness <- mean_total_fitness/repeats
+  
+  return(list(mean_tile_prob))
+}
+
+aaa <- run_simulation_15_25(100,     3,     1000,        3)
+
+for(i in seq(1, 1000, by = 50)){
+  
+  plot(1:25, aaa[[1]][i,], ylim = c(0, 0.8), main = i)
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ####ess###
