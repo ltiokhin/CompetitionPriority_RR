@@ -111,12 +111,7 @@ for(comp in 1:length(Competitor_Tile)) {
 #evolution towards equilibrium
 ######################
 payoffs_m_1 <- matrix(Rewards_Curves[[1]]$value, nrow = 25)
-
 payoffs_m_1[,16]
-
-#player 3, opponent 17 is:
-# payoffs_m_1[3, 17]
-# payoffs_m_1[17, 3]
 
 ###################
 # function to play a vector of scientists against each other #####
@@ -184,7 +179,6 @@ run_simulation <- function(N, RR, G, R) {
                     fitness[(i*2 - 1):(2*i)] <- fitness[(i*2 - 1):(2*i)] + dum
                   } # end of round
                 }
-                
                 #save state of the population sample sizes and fitness
                 mean_tile_prob[gen,] <- mean_tile_prob[gen,] + apply(all_players, 2, mean)
                 mean_total_fitness[gen] <- mean_total_fitness[gen] + sum(fitness)
@@ -193,9 +187,9 @@ run_simulation <- function(N, RR, G, R) {
                 fitness2 <- fitness/sum(fitness)
                 ss <- sample(1:nrow(all_players), size = popsize, replace=TRUE, prob=fitness2)
                 all_players <- all_players[ss,]
-                
+
                 for(i in 1:popsize){
-                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.01)
+                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.001)
                   all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
                   all_players[i,] <- all_players[i,] / sum(all_players[i,])
                 }
@@ -208,20 +202,32 @@ run_simulation <- function(N, RR, G, R) {
               mean_tile_prob <- mean_tile_prob/repeats
               mean_total_fitness <- mean_total_fitness/repeats
 
-  return(list(mean_tile_prob))
+  return(list(all_players, mean_tile_prob))
 }
 
-#                               popsize, rounds, generations, repeats
-results_1species_1 <- run_simulation(100,     2 ,     1000,        4)
-results_1species_2 <- run_simulation(100,     5,      1000,        4)
-results_1species_3 <- run_simulation(100,     5,      1000,        4)
-results_1species_4 <- run_simulation(100,     5,      1000,        4)
+run_simulation(10,     5,     10,        1)
 
-for(i in c(1, 100, 200, 300, 400, 500, 750, 1000)){
+r_1species_mixed_03mutation_5runs <- run_simulation(100,     5,     1000,        20)
+r_1species_mixed_03mutation_40runs <- run_simulation(100,     10,     1000,        40)
+
+
+# #                               popsize, rounds, generations, repeats
+# results_1species_1 <- run_simulation(100,     2 ,     1000,        4)
+# results_1species_2 <- run_simulation(100,     5,      1000,        4)
+# results_1species_3 <- run_simulation(100,     5,      1000,        4)
+# results_1species_4 <- run_simulation(100,     5,      1000,        4)
+
+for(i in c(1, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)){
   
-plot(1:25, results_1species_2[[1]][i,], ylim = c(0, 0.2))
+plot(1:25, r_1species_mixed_03mutation_5runs[[1]][i,] / sum(r_1species_mixed_03mutation_5runs[[1]][i,]), 
+     ylim = c(0, 0.1), type = "b", main = paste("5 runs, mixed species probabalistic, generation", i))
   
 }
+
+plot(1:25, results_1species_1[[1]][1000,], ylim = c(0, 0.1))
+plot(1:25, results_1species_2[[1]][1000,], ylim = c(0, 0.1))
+plot(1:25, results_1species_3[[1]][1000,], ylim = c(0, 0.1))
+
 
 for(i in c(1, 100, 200, 300, 400)){
   
@@ -294,7 +300,6 @@ run_simulation_15_25 <- function(N, RR, G, R) {
       for(i in 1:popsize){
         all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.01)
         all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
-        all_players[i,] <- all_players[i,] / sum(all_players[i,])
       }
       #sets all probabilities for tiles 14 or lower to 0. 
       all_players[,1:14] <- 0
@@ -310,11 +315,11 @@ run_simulation_15_25 <- function(N, RR, G, R) {
   return(list(mean_tile_prob))
 }
 
-aaa <- run_simulation_15_25(100,     3,     1000,        3)
+aaa <- run_simulation_15_25(100,     5,     1000,        5)
 
 for(i in seq(1, 1000, by = 50)){
   
-  plot(1:25, aaa[[1]][i,], ylim = c(0, 0.8), main = i, type = "b")
+  plot(1:25, aaa[[1]][i,] / sum(aaa[[1]][i,]), ylim = c(0, 0.1), main = i, type = "b")
   
 }
 
@@ -346,7 +351,8 @@ run_simulation_fixed <- function(N, RR, G, R) {
   repeats <- R # number of simulations for every unique combo of effect and startup cost
 
   eq.tiles <- matrix(rep(0, popsize), nrow = repeats, ncol = popsize)
-  eq.totalfitness <- vector()
+  fitness_acrossgens <- matrix(rep(0, popsize), nrow = gens, ncol = popsize)
+  eq.totalfitness <- matrix(rep(0, popsize), nrow = repeats, ncol = popsize)
   mean_tiles <- vector()
   all_players <- vector()
 
@@ -379,42 +385,50 @@ run_simulation_fixed <- function(N, RR, G, R) {
       }
       #save state of the population sample sizes and fitness
       everyone_tiles[gen,] <- everyone_tiles[gen,] + all_players
+      fitness_acrossgens[gen,] <- fitness/sum(fitness)
 
       # calculate fitness and manage reproduction
       fitness2 <- fitness/sum(fitness)
       all_players <- sample(all_players, size = popsize, replace=TRUE, prob=fitness2)
-        all_players <- all_players + rnorm(length(all_players), 0, 2)
+        all_players <- all_players + rnorm(length(all_players), 0, 0.4)
         all_players <- round(all_players, 0)
         all_players <- pmin(pmax(all_players, 1), 25)
 
     } # end of all generations
     eq.tiles[rep,] <- everyone_tiles[gen,]
+    eq.totalfitness[rep,] <- fitness/sum(fitness)
   }
   # end of repeats
   mean_tiles <- apply(eq.tiles, 2, mean)
 
-  return(list(everyone_tiles, eq.tiles, mean_tiles))
+  return(list(everyone_tiles, eq.tiles, mean_tiles, fitness_acrossgens, eq.totalfitness))
 }
 
-aaa <- run_simulation_fixed(200,     20,     2000,        10)
+bbb <- run_simulation_fixed(200,     100,     300,        3)
 
-for(i in seq(1, 2000, by = 100)){
+#plotting 1 repetition, across the time of the simulation
+###aaa has results for when mutation is 2
+for(i in seq(1, 300, by = 50)){
   
-  hist(aaa[[1]][i,], main = paste("generation", i), 
-       breaks = c(1:25))
-  
+  hist(bbb[[4]][i,], main = paste("fitness at across gens, gen", i))
 }
+
+hist(bbb[[3]], main = "averaging across runs", breaks = c(1:25))
+
+hist[]
+
 
 ##plotting the distribution of sample sizes at the end of 2000 generations of evolution
-
 for(i in 1:10){
   
-  hist(aaa[[2]][i,], main = paste("repeat", i), 
+  hist(bbb[[2]][i,], main = paste("mutation 3, distribution at the end of repeat", i), 
        breaks = c(1:25))
   
 }
 
-?hist
+
+
+
 
 
 
