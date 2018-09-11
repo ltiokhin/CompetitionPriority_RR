@@ -113,6 +113,14 @@ for(comp in 1:length(Competitor_Tile)) {
 payoffs_m_1 <- matrix(Rewards_Curves[[1]]$value, nrow = 25)
 payoffs_m_1[,16]
 
+###so when you play against high SS players you kill it, but when you play against other low SS players then 
+#things suck. 
+
+payoffs_m_1[6, 11]
+payoffs_m_1[11, 6]
+payoffs_m_1[6, 6]
+payoffs_m_1[11, 11]
+
 ###################
 # function to play a vector of scientists against each other #####
 #######################
@@ -218,10 +226,6 @@ run_simulation <- function(N, RR, G, R) {
 # results_1species_4 <- run_simulation(100,     5,      1000,        4)
 
 mixed_0.002_mutation_2runs_5000gens_1 <- run_simulation(100,     25,     5000,        2)
-
-plot(1:1000, mixed_robversion_5runs_1000gens[[3]], main="variance in fitness; 5runs; proper way reproduction, 
-mixed strategies", ylim=c(0, 1000))
-     
     
 ########
 ###Rob version####
@@ -307,6 +311,10 @@ run_simulation_rob <- function(N, RR, G, R) {
   
   return(list(mean_tile_prob, eq.fitness2, variance_fitness))
 }
+
+#######need to plut eq.fitness 2 here and see how variable it is#####
+plot(1:1000, mixed_robversion_5runs_1000gens[[3]], main="variance in fitness; 5runs; proper way reproduction, 
+mixed strategies", ylim=c(0, 1000))
 
 #################
 #1 species; mixed strategies; 15:25
@@ -395,7 +403,6 @@ for(i in seq(1, 1000, by = 50)){
 
 
 ###fixed strategy play ess###
-
 play_ess_fixed <- function(tile_a, tile_b) {
   
   payoffs <- rep(0, 2)
@@ -457,11 +464,26 @@ run_simulation_fixed <- function(N, RR, G, R) {
       everyone_tiles[gen,] <- everyone_tiles[gen,] + all_players
       fitness_acrossgens[gen,] <- fitness/sum(fitness)
 
-      # calculate fitness and manage reproduction
+      # calculate fitness and manage reproduction (easy way)
+      # fitness2 <- fitness/sum(fitness)
+      # all_players <- sample(all_players, size = popsize, replace=TRUE, prob=fitness2)
+      # all_players <- all_players + round(rnorm(popsize, 0, 0), 0)
+      # all_players <- pmin(pmax(all_players, 1), 25)
+      
+      # calculate fitness and manage reproduction (Rob way)
       fitness2 <- fitness/sum(fitness)
-      all_players <- sample(all_players, size = popsize, replace=TRUE, prob=fitness2)
-      all_players <- all_players + round(rnorm(popsize, 0, 1), 0)
-      all_players <- pmin(pmax(all_players, 1), 25)
+      nextgen <- rep(0, popsize)
+      
+      for(i in 1:popsize){
+        while(nextgen[i] == 0){
+          ss <- sample(1:length(all_players), size = 1)
+          if(runif(1, 0, 1) < fitness2[ss]){
+            nextgen[i] <- all_players[ss]
+          }
+        }
+      }
+      
+      all_players <- nextgen
       
     } # end of all generations
     eq.tiles[rep,] <- everyone_tiles[gen,]
@@ -470,10 +492,22 @@ run_simulation_fixed <- function(N, RR, G, R) {
   # end of repeats
   mean_tiles <- apply(eq.tiles, 2, mean)
 
-  return(list(everyone_tiles, eq.tiles, mean_tiles, fitness_acrossgens, eq.totalfitness))
+  return(list(eq.tiles, eq.totalfitness))
 }
 
-bbb <- run_simulation_fixed(20,     5,     3,        1)
+list_fixed_nomut_eq <- list()
+
+for(i in 1:20){
+  list_fixed_nomut_eq[[i]] <- run_simulation_fixed(500,     250,     300,        1)
+  simplehist(list_fixed_nomut_eq[[i]][[1]], main = paste("Fixed; Equilibrium Distribution of Players, 300gens", i))
+  hist(list_fixed_nomut_eq[[i]][[2]], main = paste("Equilibrium Fitness; 300gens", i))
+}
+
+save(list_fixed_nomut_eq, file="list_fixed_nomut_eq; robfitness; 300gens; 20 single runs")
+
+
+
+
 
 #plotting 1 repetition, across the time of the simulation
 ###aaa has results for when mutation is 2
