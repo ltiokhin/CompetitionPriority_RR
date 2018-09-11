@@ -145,8 +145,9 @@ run_simulation <- function(N, RR, G, R) {
   gens <- G # number of generations
   repeats <- R # number of simulations for every unique combo of effect and startup cost
   
-    eq.tileprob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
-    eq.totalfitness <- vector()
+    variance_fitness <- rep(0, gens)
+    eq.fitness2 <- matrix(0, nrow = gens, ncol = popsize)
+    fitness_across_gens <- matrix(rep(0, 25), nrow = gens, ncol = 25)
             
             mean_tile_prob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
             mean_total_fitness <- rep(0, gens)
@@ -154,11 +155,14 @@ run_simulation <- function(N, RR, G, R) {
             
             for(rep in 1:repeats) {
               
+              print("repeat")
+              
               # initialize the population, for each repeat. Each player is a row in the matrix. 
               for(i in 1:popsize){
                 playr <- runif(25, 0, 1)
                 all_players[i,] <- round(playr / sum(playr), 3)
               }
+              
               # start looping
               for (gen in 1:gens) {
                 
@@ -182,61 +186,127 @@ run_simulation <- function(N, RR, G, R) {
                 #save state of the population sample sizes and fitness
                 mean_tile_prob[gen,] <- mean_tile_prob[gen,] + apply(all_players, 2, mean)
                 mean_total_fitness[gen] <- mean_total_fitness[gen] + sum(fitness)
-                
+
                 # calculate fitness and manage reproduction
                 fitness2 <- fitness/sum(fitness)
                 ss <- sample(1:nrow(all_players), size = popsize, replace=TRUE, prob=fitness2)
                 all_players <- all_players[ss,]
 
                 for(i in 1:popsize){
-                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.001)
+                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.002)
                   all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
                   all_players[i,] <- all_players[i,] / sum(all_players[i,])
                 }
+                #save the variance in absolute fitness and the relative fitnesses of everyone each generation
+                variance_fitness[gen] <- variance_fitness[gen] + var(fitness)
+                eq.fitness2[gen,] <- eq.fitness2[gen,] + fitness2
                 
               } # end of all generations
-              eq.tileprob <- c(eq.tileprob, mean_tile_prob[gens,])
-              eq.totalfitness <- c(eq.totalfitness, sum(fitness))
             } 
             # end of repeats
               mean_tile_prob <- mean_tile_prob/repeats
               mean_total_fitness <- mean_total_fitness/repeats
+              variance_fitness <- variance_fitness/repeats
+              eq.fitness2 <- eq.fitness2/repeats
 
-  return(list(all_players, mean_tile_prob))
+  return(list(mean_tile_prob, eq.fitness2, variance_fitness))
 }
-
-run_simulation(10,     5,     10,        1)
-
-r_1species_mixed_03mutation_5runs <- run_simulation(100,     5,     1000,        20)
-r_1species_mixed_03mutation_40runs <- run_simulation(100,     10,     1000,        40)
-
-
 # #                               popsize, rounds, generations, repeats
 # results_1species_1 <- run_simulation(100,     2 ,     1000,        4)
 # results_1species_2 <- run_simulation(100,     5,      1000,        4)
 # results_1species_3 <- run_simulation(100,     5,      1000,        4)
 # results_1species_4 <- run_simulation(100,     5,      1000,        4)
 
-for(i in c(1, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)){
+mixed_0.002_mutation_2runs_5000gens_1 <- run_simulation(100,     25,     5000,        2)
+
+plot(1:1000, mixed_robversion_5runs_1000gens[[3]], main="variance in fitness; 5runs; proper way reproduction, 
+mixed strategies", ylim=c(0, 1000))
+     
+    
+########
+###Rob version####
+########
+run_simulation_rob <- function(N, RR, G, R) {
   
-plot(1:25, r_1species_mixed_03mutation_5runs[[1]][i,] / sum(r_1species_mixed_03mutation_5runs[[1]][i,]), 
-     ylim = c(0, 0.1), type = "b", main = paste("5 runs, mixed species probabalistic, generation", i))
+  popsize <- N # sets population size
+  rounds <- RR # how many other scientists each scientist faces per generation
+  gens <- G # number of generations
+  repeats <- R # number of simulations for every unique combo of effect and startup cost
   
+  variance_fitness <- rep(0, gens)
+  eq.fitness2 <- matrix(0, nrow = gens, ncol = popsize)
+  fitness_across_gens <- matrix(rep(0, 25), nrow = gens, ncol = 25)
+  
+  mean_tile_prob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
+  mean_total_fitness <- rep(0, gens)
+  all_players <- matrix(rep(0, 25), nrow = popsize, ncol = 25)
+  
+  for(rep in 1:repeats) {
+    
+    # initialize the population, for each repeat. Each player is a row in the matrix. 
+    for(i in 1:popsize){
+      playr <- runif(25, 0, 1)
+      all_players[i,] <- round(playr / sum(playr), 3)
+    }
+    
+    # start looping
+    for (gen in 1:gens) {
+      
+      #make sure fitness values are 0 at the start of each generation
+      fitness <- rep(0.0000001, popsize)
+      
+      for (round in 1:rounds) {
+        # for each round randomize the partners
+        indexes <- sample(1:popsize, size=popsize)
+        all_players <- all_players[indexes,]
+        fitness <- fitness[indexes]
+        
+        for (i in 1:(popsize/2)) {
+          # pairs play against each other
+          competitor_a <- all_players[(i*2 - 1),]
+          competitor_b <- all_players[(2*i),]
+          dum <- play_ess(competitor_a, competitor_b)
+          fitness[(i*2 - 1):(2*i)] <- fitness[(i*2 - 1):(2*i)] + dum
+        } # end of round
+      }
+      #save state of the population sample sizes and fitness
+      mean_tile_prob[gen,] <- mean_tile_prob[gen,] + apply(all_players, 2, mean)
+      mean_total_fitness[gen] <- mean_total_fitness[gen] + sum(fitness)
+      
+      # calculate fitness and manage reproduction
+      fitness2 <- fitness/sum(fitness)
+      nextgen <- rep(0, popsize)
+      
+      for(i in 1:popsize){
+        while(nextgen[i] == 0){
+          ss <- sample(1:nrow(all_players), size = 1)
+          if(runif(1, 0, 1) < fitness2[ss]){
+            nextgen[i] <- ss
+          }
+        }
+      }
+      #next generation
+      all_players <- all_players[nextgen,]
+      
+      for(i in 1:popsize){
+        all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.001)
+        all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
+        all_players[i,] <- all_players[i,] / sum(all_players[i,])
+      }
+      #save the variance in absolute fitness and the relative fitnesses of everyone each generation
+      variance_fitness[gen] <- variance_fitness[gen] + var(fitness)
+      eq.fitness2[gen,] <- eq.fitness2[gen,] + fitness2
+      
+    } # end of all generations
+  } 
+  # end of repeats
+  mean_tile_prob <- mean_tile_prob/repeats
+  mean_total_fitness <- mean_total_fitness/repeats
+  variance_fitness <- variance_fitness/repeats
+  eq.fitness2 <- eq.fitness2/repeats
+  
+  return(list(mean_tile_prob, eq.fitness2, variance_fitness))
 }
-
-plot(1:25, results_1species_1[[1]][1000,], ylim = c(0, 0.1))
-plot(1:25, results_1species_2[[1]][1000,], ylim = c(0, 0.1))
-plot(1:25, results_1species_3[[1]][1000,], ylim = c(0, 0.1))
-
-
-for(i in c(1, 100, 200, 300, 400)){
-  
-  plot(1:25, aaa[[1]][i,], ylim = c(0, 0.2))
-  
-}
-
-###take home message when populations are mixed - - - nothing happens
-######################
 
 #################
 #1 species; mixed strategies; 15:25
@@ -390,10 +460,9 @@ run_simulation_fixed <- function(N, RR, G, R) {
       # calculate fitness and manage reproduction
       fitness2 <- fitness/sum(fitness)
       all_players <- sample(all_players, size = popsize, replace=TRUE, prob=fitness2)
-        all_players <- all_players + rnorm(length(all_players), 0, 0.4)
-        all_players <- round(all_players, 0)
-        all_players <- pmin(pmax(all_players, 1), 25)
-
+      all_players <- all_players + round(rnorm(popsize, 0, 1), 0)
+      all_players <- pmin(pmax(all_players, 1), 25)
+      
     } # end of all generations
     eq.tiles[rep,] <- everyone_tiles[gen,]
     eq.totalfitness[rep,] <- fitness/sum(fitness)
@@ -404,7 +473,7 @@ run_simulation_fixed <- function(N, RR, G, R) {
   return(list(everyone_tiles, eq.tiles, mean_tiles, fitness_acrossgens, eq.totalfitness))
 }
 
-bbb <- run_simulation_fixed(200,     100,     300,        3)
+bbb <- run_simulation_fixed(20,     5,     3,        1)
 
 #plotting 1 repetition, across the time of the simulation
 ###aaa has results for when mutation is 2
