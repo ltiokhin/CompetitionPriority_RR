@@ -162,9 +162,7 @@ run_simulation <- function(N, RR, G, R) {
             all_players <- matrix(rep(0, 25), nrow = popsize, ncol = 25)
             
             for(rep in 1:repeats) {
-              
-              print("repeat")
-              
+             
               # initialize the population, for each repeat. Each player is a row in the matrix. 
               for(i in 1:popsize){
                 playr <- runif(25, 0, 1)
@@ -201,7 +199,7 @@ run_simulation <- function(N, RR, G, R) {
                 all_players <- all_players[ss,]
 
                 for(i in 1:popsize){
-                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.002)
+                  all_players[i,] <- all_players[i,] + rnorm(25, 0, 0.003)
                   all_players[i,] <- pmin(pmax(all_players[i,], 0), 1)
                   all_players[i,] <- all_players[i,] / sum(all_players[i,])
                 }
@@ -225,8 +223,33 @@ run_simulation <- function(N, RR, G, R) {
 # results_1species_3 <- run_simulation(100,     5,      1000,        4)
 # results_1species_4 <- run_simulation(100,     5,      1000,        4)
 
-mixed_0.002_mutation_2runs_5000gens_1 <- run_simulation(100,     25,     5000,        2)
-    
+#####
+mixed_0.003_mutation_200pop_100rounds_20runs_500gens <- run_simulation(200,     100,     500, 20)
+######
+mixed_0.003_mutation_200pop_100rounds_1run_5000gens_a <- run_simulation(200,     100,     5000, 1)
+mixed_0.003_mutation_200pop_100rounds_1run_5000gens_b <- run_simulation(200,     100,     5000, 1)
+mixed_0.003_mutation_200pop_100rounds_1run_5000gens_c <- run_simulation(200,     100,     5000, 1)
+
+save(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_a, file = "mixed_0.003_mutation_200pop_100rounds_1run_5000gens_a.RData")
+save(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_b, file = "mixed_0.003_mutation_200pop_100rounds_1run_5000gens_b.RData")
+save(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_c, file = "mixed_0.003_mutation_200pop_100rounds_1run_5000gens_c.RData")
+
+plot(1:25, mixed_0.003_mutation_200pop_100rounds_1run_5000gens_a[[1]][5000,], type = "b")
+hist(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_a[[2]][5000,])
+
+plot(1:25, mixed_0.003_mutation_200pop_100rounds_1run_5000gens_b[[1]][5000,], type = "b")
+hist(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_b[[2]][5000,])
+
+plot(1:25, mixed_0.003_mutation_200pop_100rounds_1run_5000gens_c[[1]][5000,], type = "b")
+hist(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_c[[2]][5000,])
+
+
+all_3_mixed_runs <- rbind(mixed_0.003_mutation_200pop_100rounds_1run_5000gens_a[[1]][5000,], 
+      mixed_0.003_mutation_200pop_100rounds_1run_5000gens_b[[1]][5000,], 
+      mixed_0.003_mutation_200pop_100rounds_1run_5000gens_c[[1]][5000,])
+
+all_3_mixed_runs <- apply(all_3_mixed_runs, 2, mean)
+plot(1:25, all_3_mixed_runs, type = "b", main = "5000 gens; 3 runs combined; 200popsize; 100interactions")
 ########
 ###Rob version####
 ########
@@ -238,7 +261,7 @@ run_simulation_rob <- function(N, RR, G, R) {
   repeats <- R # number of simulations for every unique combo of effect and startup cost
   
   variance_fitness <- rep(0, gens)
-  eq.fitness2 <- matrix(0, nrow = gens, ncol = popsize)
+  eq.fitness2 <- matrix(0, nrow = repeats, ncol = popsize)
   fitness_across_gens <- matrix(rep(0, 25), nrow = gens, ncol = 25)
   
   mean_tile_prob <- matrix(rep(0, 25), nrow = gens, ncol = 25)
@@ -299,17 +322,16 @@ run_simulation_rob <- function(N, RR, G, R) {
       }
       #save the variance in absolute fitness and the relative fitnesses of everyone each generation
       variance_fitness[gen] <- variance_fitness[gen] + var(fitness)
-      eq.fitness2[gen,] <- eq.fitness2[gen,] + fitness2
-      
     } # end of all generations
+    eq.fitness2[rep,] <- fitness2
+    eq.tileprob[rep,] <- mean_tile_prob[gens,]
   } 
   # end of repeats
   mean_tile_prob <- mean_tile_prob/repeats
   mean_total_fitness <- mean_total_fitness/repeats
   variance_fitness <- variance_fitness/repeats
-  eq.fitness2 <- eq.fitness2/repeats
   
-  return(list(mean_tile_prob, eq.fitness2, variance_fitness))
+  return(list(eq.tileprob, mean_tile_prob, eq.fitness2, variance_fitness))
 }
 
 #######need to plut eq.fitness 2 here and see how variable it is#####
