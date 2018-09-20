@@ -272,7 +272,7 @@ ggplot(d.gg.f, aes(x = as.factor(Competition), y = TilesRevealed,
   geom_violin(trim = FALSE) + 
   facet_grid(. ~ Effort) + theme_bw(base_size = 12) +
   theme(strip.text.x = element_blank()) + 
-  geom_errorbar(aes(ymin = low_ci, ymax=high_ci), width=0.1, lwd=0.7) +
+  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), lwd=0.7) +
   ylim(0, 25) + xlab("Competition") + ylab("Tiles Revealed") +
 scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes")) +
   scale_fill_brewer(name="Effort", palette = "Set1", 
@@ -401,15 +401,17 @@ d.gg.math$high_ci[d.gg.math$Competition == 0] <- d.gg$high_ci[d.gg$competition =
 d.gg.math$high_ci[d.gg.math$Competition == 1] <- d.gg$high_ci[d.gg$competition == 1]
 
 #plot
+d.gg$ElapsedTime_MathSolved <- d.gg$mean
+d.gg$Competition <- d.gg$competition
+
 ggplot(d.gg.math, aes(x = as.factor(Competition), y = ElapsedTime_MathSolved)) +
   geom_violin(trim = FALSE, fill = "#377eb8") + theme_bw(base_size = 12) +
-  geom_errorbar(aes(ymin = low_ci, ymax=high_ci), width=0.1, lwd=0.7) +
+  stat_summary(fun.y=mean, data = d.gg, geom="point", size=2, color = "black") +
+  geom_pointrange(data = d.gg, aes(ymin = low_ci, ymax=high_ci), lwd=0.7) +
   ylim(0, 25) + 
   xlab("Competition") + ylab("Time (seconds) to Accurately Solve an Arithmetic Problem") +
   scale_x_discrete(name ="Competition", labels=c("No","Yes")) +
   scale_fill_brewer(palette="Set1")
-
-
 
 
 
