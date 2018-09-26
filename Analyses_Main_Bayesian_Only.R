@@ -279,7 +279,6 @@ d.gg2$Effort <- d.gg2$effort
 d.gg2$TilesRevealed <- d.gg2$mean
 d.gg2$competition <- NULL
 d.gg2$effort <- NULL
-
 d.gg.f$Effort <- as.factor(d.gg.f$Effort)
 
 ggplot(d.gg.f, aes(x = as.factor(Competition), y = TilesRevealed, 
@@ -291,6 +290,22 @@ ggplot(d.gg.f, aes(x = as.factor(Competition), y = TilesRevealed,
   geom_pointrange(aes(ymin = low_ci, ymax=high_ci), data=d.gg2, lwd=0.8) +
   scale_fill_brewer(name="Effort", palette = "Set1", 
                     labels = c("No Effort", "Effort"))
+
+###Alternative plots for tiles revealed###
+pred.p.mean_sorted <- c(pred.p.mean[1], pred.p.mean[3], pred.p.mean[2], 
+                        pred.p.mean[4])
+pred.p.PI_sorted <- matrix(NA, 2, 4)
+pred.p.PI_sorted[,1] <- pred.p.PI[,1]
+pred.p.PI_sorted[,2] <- pred.p.PI[,3]
+pred.p.PI_sorted[,3] <- pred.p.PI[,2]
+pred.p.PI_sorted[,4] <- pred.p.PI[,4]
+
+plot( 0 , 0 , type="n" , xlab="Competition/Effort Treatment" ,
+      ylab="Tiles Revealed" , ylim=c(0,25) , xaxt="n" , main = "Mean Tiles Revealed in 4 Treatments",
+      xlim=c(1,4) )
+axis( 1 , at=1:4 , labels=c("0/0","1/0","0/1","1/1") )
+lines( 1:4 , pred.p.mean_sorted, type = "b")
+shade( pred.p.PI_sorted , 1:4 , col=col.alpha(rangi2, 0.15))
 
 ######
 ###Effect of competition and effort on accuracy###
