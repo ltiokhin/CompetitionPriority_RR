@@ -280,13 +280,15 @@ d.gg2$TilesRevealed <- d.gg2$mean
 d.gg2$competition <- NULL
 d.gg2$effort <- NULL
 
+d.gg.f$Effort <- as.factor(d.gg.f$Effort)
+
 ggplot(d.gg.f, aes(x = as.factor(Competition), y = TilesRevealed, 
-                   fill = as.factor(Effort))) + 
+                   fill = Effort)) + 
   geom_violin(trim = FALSE) + 
   facet_grid(. ~ Effort) + theme_bw(base_size = 12) + theme(strip.text.x = element_blank()) +
   ylim(0, 25) + xlab("Competition") + ylab("Tiles Revealed") +
-  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), data=d.gg.f, lwd=0.8, fatten = 3) +
   scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes")) +
+  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), data=d.gg2, lwd=0.8) +
   scale_fill_brewer(name="Effort", palette = "Set1", 
                     labels = c("No Effort", "Effort"))
 
