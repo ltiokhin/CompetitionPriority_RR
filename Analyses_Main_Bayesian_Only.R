@@ -247,10 +247,13 @@ pred.p.mean <- apply(m.tiles.link , 2 , mean)
 pred.p.PI <- apply( m.tiles.link , 2 , HPDI , prob=0.95)
 
 ### plot the raw data and the 95% HPDI from m.tiles ###
-d.gg.f <- data.c
+d.gg.f <- d.tiles
 d.gg.f$mean <- NA
 d.gg.f$low_ci <- NA
 d.gg.f$high_ci <- NA
+
+d.gg <- data.frame(mean = pred.p.mean, low_ci = pred.p.PI[1,], high_ci = pred.p.PI[2,], 
+                   competition = as.factor(c(0, 0, 1, 1)), effort = as.factor(c(0, 1, 0, 1)))
 
 #means
 d.gg.f$mean[d.gg.f$Competition == 0 & d.gg.f$Effort == 0] <- d.gg$mean[d.gg$competition == 0 & d.gg$effort == 0]
@@ -270,13 +273,19 @@ d.gg.f$high_ci[d.gg.f$Competition == 1 & d.gg.f$Effort == 0] <- d.gg$high_ci[d.g
 d.gg.f$high_ci[d.gg.f$Competition == 1 & d.gg.f$Effort == 1] <- d.gg$high_ci[d.gg$competition == 1 & d.gg$effort == 1]
 
 #plot
+d.gg2 <- d.gg
+d.gg2$Competition <- d.gg2$competition
+d.gg2$Effort <- d.gg2$effort
+d.gg2$TilesRevealed <- d.gg2$mean
+d.gg2$competition <- NULL
+d.gg2$effort <- NULL
+
 ggplot(d.gg.f, aes(x = as.factor(Competition), y = TilesRevealed, 
                    fill = as.factor(Effort))) + 
   geom_violin(trim = FALSE) + 
-  facet_grid(. ~ Effort) + theme_bw(base_size = 12) +
-  theme(strip.text.x = element_blank()) + 
-  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), lwd=0.8) +
+  facet_grid(. ~ Effort) + theme_bw(base_size = 12) + theme(strip.text.x = element_blank()) +
   ylim(0, 25) + xlab("Competition") + ylab("Tiles Revealed") +
+  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), data=d.gg.f, lwd=0.8, fatten = 3) +
   scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes")) +
   scale_fill_brewer(name="Effort", palette = "Set1", 
                     labels = c("No Effort", "Effort"))
