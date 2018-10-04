@@ -4,11 +4,10 @@ rm(list=ls())
 #########
 library(tidyverse)
 library(rethinking)
-library(lme4)
-library(lmerTest)
 library(effects)
 library(sjPlot)
 library(stringr)
+library(RColorBrewer)
 
 ###Load Data###
 
@@ -17,78 +16,9 @@ library(stringr)
 sequences <- read.table("Sequences1.txt", header=FALSE) #the sequence of blue and yellow tiles for each grid
 
 ###Cleaning and Data Prep###
-data <- Data
-data_math <- Data_MathProblem
-
-#removing redundant data
-rm(Data)
-rm(Data_MathProblem)
-
-#removing rows with missing observations (also removes participants who did not complete the study
-#(i.e. had NA values for compcheck)
-data.c <- data[complete.cases(data),] #remove 5631 by this (ignore colummn 14 if want to keep 0 tile guesses)
-data_math.c <- data_math[complete.cases(data_math),] #also make this not do the last column
-
-#alternatively
-# data <- data[complete.cases(data_math[, 1:13]), ]
-# data_math.c <- data_math[complete.cases(data_math[, c(1:14, 16)]), ]
-
-##################
-###check numbers in each condition
-data_f <- data.c[data.c$Sex == "Female",]
-data_m <- data.c[data.c$Sex == "Male",]
-
-#females
-length(unique(data_f$ID_Player[data_f$Effort == 0 & data_f$Competition == 0])) # 10
-length(unique(data_f$ID_Player[data_f$Effort == 0 & data_f$Competition == 1])) # 10
-length(unique(data_f$ID_Player[data_f$Effort == 1 & data_f$Competition == 0])) # 10
-length(unique(data_f$ID_Player[data_f$Effort == 1 & data_f$Competition == 1])) # 9
-
-#males
-length(unique(data_m$ID_Player[data_m$Effort == 0 & data_m$Competition == 0])) # 12
-length(unique(data_m$ID_Player[data_m$Effort == 0 & data_m$Competition == 1])) # 4
-length(unique(data_m$ID_Player[data_m$Effort == 1 & data_m$Competition == 0])) # 9
-length(unique(data_m$ID_Player[data_m$Effort == 1 & data_m$Competition == 1])) # 3
-
-rm(data_f)
-rm(data_m)
-########################
-
-#simple histogram of time until guess
-simplehist(data.c$ElapsedTime_Guess, xlab = "Time Until Guess (seconds), All Data.")
-
-#remove times until guess that are more than 5 standard deviations away from the mean
-sd5.times <- mean(data.c$ElapsedTime_Guess) + ( 5 * sd(data.c$ElapsedTime_Guess))
-nrow(data.c[data.c$ElapsedTime_Guess > sd5.times,]) #number of observations excluded
-data.c <- data.c[data.c$ElapsedTime_Guess < sd5.times,]
-simplehist(data.c$ElapsedTime_Guess, xlab = "Time Until Guess (seconds), Outliers Exluded (5 SD)")
-
-#simple histogram of arithmetic problem solving times
-simplehist(data_math.c$ElapsedTime_Math, xlab = "Arithmetic Problem Solving Times (seconds), All Data.")
-
-#remove math-problem times that are more than 3 standard deviations away from the mean
-sd5 <- mean(data_math.c$ElapsedTime_Math) + ( 5 * sd(data_math.c$ElapsedTime_Math))
-nrow(data_math.c[data_math.c$ElapsedTime_Math > sd5,]) #number of observations excluded
-data_math.c <- data_math.c[data_math.c$ElapsedTime_Math < sd5,]
-simplehist(data_math.c$ElapsedTime_Math, xlab = "Arithmetic Problem Solving Times (seconds), Outliers Exluded (5 SD)")
-
-#copying data into separate objects for frequentist analyses
-# data.cf <- data.c
-# data_math.cf <- data_math.c
-
-#changing sex and player ID to numeric
-data.c$Sex <- as.numeric(data.c$Sex)
-data_math.c$Sex <- as.numeric(data_math.c$Sex)
-data.c$ID_Player <- as.numeric(data.c$ID_Player)
-data_math.c$ID_Player <- as.numeric(data_math.c$ID_Player)
-
-###changing variables to factors for frequentist analyses##
-# factorfxn <- function(x) as.factor(x)
-# cols <- c("Sex", "Effort", "Competition", "CompCheck", "Correct_Guess", "Faster", "ID_Player", "ID_Group")
-# data.cf[,cols] <- lapply(data.cf[,cols], factorfxn)
-# cols.m <- c("Sex", "Effort", "Competition", "CompCheck", "Correct_Guess", "Correct_Math", "ID_Player", 
-#             "ID_Group")
-# data_math.cf[,cols.m] <- lapply(data_math.cf[,cols.m], factorfxn)
+d.quality.c <- d.quality[complete.cases(d.quality[c(1:8, 10)]),]
+d.conf_1_2.c <- d.conf_1_2[complete.cases(d.conf_1_2),]
+d.conf_3_math.c <- d.conf_3_math[complete.cases(d.conf_3_math),]
 
 ###for each of the 600 possible sequences, the number of majority tiles (i.e. effect size)###
 seq.df <- data.frame(seq = sequences)
@@ -108,85 +38,82 @@ g_13 <- which(n_majority == 13)
 g_15 <- which(n_majority == 15)
 g_17 <- which(n_majority == 17)
 
-#adds this to all data sets
-data.c$n_major <- rep(NA, nrow(data.c))
-#data.cf$n_major <- rep(NA, nrow(data.cf))
-data_math.c$n_major <- rep(NA, nrow(data_math.c))
-#data_math.cf$n_major <- rep(NA, nrow(data_math.cf))
+#adds this to relevant data sets
+d.conf_1_2.c$n_major <- rep(NA, nrow(d.conf_1_2.c))
+d.conf_3_math.c$n_major <- rep(NA, nrow(d.conf_3_math.c))
 
-for(i in 1:nrow(data.c)){
-  if(data.c$Guess_Number[i] %in% g_13){data.c$n_major[i] <- 13}
-  if(data.c$Guess_Number[i] %in% g_15){data.c$n_major[i] <- 15}
-  if(data.c$Guess_Number[i] %in% g_17){data.c$n_major[i] <- 17}
+for(i in 1:nrow(d.conf_1_2.c)){
+  if(d.conf_1_2.c$Guess_Number[i] %in% g_13){d.conf_1_2.c$n_major[i] <- 13}
+  if(d.conf_1_2.c$Guess_Number[i] %in% g_15){d.conf_1_2.c$n_major[i] <- 15}
+  if(d.conf_1_2.c$Guess_Number[i] %in% g_17){d.conf_1_2.c$n_major[i] <- 17}
 }
-# for(i in 1:nrow(data.cf)){
-#   if(data.cf$Guess_Number[i] %in% g_13){data.cf$n_major[i] <- 13}
-#   if(data.cf$Guess_Number[i] %in% g_15){data.cf$n_major[i] <- 15}
-#   if(data.cf$Guess_Number[i] %in% g_17){data.cf$n_major[i] <- 17}
-# }
-for(i in 1:nrow(data_math.c)){
-  if(data_math.c$Guess_Number[i] %in% g_13){data_math.c$n_major[i] <- 13}
-  if(data_math.c$Guess_Number[i] %in% g_15){data_math.c$n_major[i] <- 15}
-  if(data_math.c$Guess_Number[i] %in% g_17){data_math.c$n_major[i] <- 17}
+
+for(i in 1:nrow(d.conf_3_math.c)){
+  if(d.conf_3_math.c$Guess_Number[i] %in% g_13){d.conf_3_math.c$n_major[i] <- 13}
+  if(d.conf_3_math.c$Guess_Number[i] %in% g_15){d.conf_3_math.c$n_major[i] <- 15}
+  if(d.conf_3_math.c$Guess_Number[i] %in% g_17){d.conf_3_math.c$n_major[i] <- 17}
 }
-# for(i in 1:nrow(data_math.cf)){
-#   if(data_math.cf$Guess_Number[i] %in% g_13){data_math.cf$n_major[i] <- 13}
-#   if(data_math.cf$Guess_Number[i] %in% g_15){data_math.cf$n_major[i] <- 15}
-#   if(data_math.cf$Guess_Number[i] %in% g_17){data_math.cf$n_major[i] <- 17}
-# }
 
-#standardizing n_major
-data.c$n_major.s <- (data.c$n_major - mean(data.c$n_major)) / sd(data.c$n_major)
-#data.cf$n_major.s <- (data.cf$n_major - mean(data.cf$n_major)) / sd(data.cf$n_major)
-data_math.c$n_major.s <- (data_math.c$n_major - mean(data_math.c$n_major)) / sd(data_math.c$n_major)
-#data_math.cf$n_major.s <- (data_math.cf$n_major - mean(data_math.cf$n_major)) / sd(data_math.cf$n_major)
+#remove rows with time-until-guess values that are more than 5 standard deviations away from the mean
+agg <- aggregate(ElapsedTime_Guess ~ Guess_Number + ID_Player + Effort + Competition, data=d.quality.c, FUN = mean)
+sd5.times <- mean(agg$ElapsedTime_Guess) + (5 * sd(agg$ElapsedTime_Guess))
+nrow(agg[agg$ElapsedTime_Guess > sd5.times,]) #104 observations excluded
 
-# #change to factor for frequentist analyses
-# data.cf$n_major <- as.factor(data.cf$n_major)
-# data_math.cf$n_major.s <- as.factor(data_math.cf$n_major)
-# data.cf$n_major.s <- as.factor(data.cf$n_major.s)
-# data_math.cf$n_major.s <- as.factor(data_math.cf$n_major.s)
+#excluding observations from all datasets
+d.quality.c <- d.quality.c[d.quality.c$ElapsedTime_Guess < sd5.times,]
+d.conf_1_2.c <- d.conf_1_2.c[d.conf_1_2.c$ElapsedTime_Guess < sd5.times,]
+d.conf_3_math.c <- d.conf_3_math.c[d.conf_3_math.c$ElapsedTime_Guess < sd5.times,]
+
+#remove rows with arithmetic-solving-times that are more than 5 standard deviations away from the mean
+sd5.times <- mean(d.conf_3_math.c$ElapsedTime_Math) + (5 * sd(d.conf_3_math.c$ElapsedTime_Math))
+nrow(d.conf_3_math.c[d.conf_3_math.c$ElapsedTime_Math > sd5.times,]) #93 observations excluded
+
+#excluding observations from math dataset
+d.conf_3_math.c <- d.conf_3_math.c[d.conf_3_math.c$ElapsedTime_Math < sd5.times,]
 
 ###########################
 ###Quality Checks###
 ##########################
 
+#Remove remaining NA's
+d.quality.final <- d.quality.c[complete.cases(d.quality.c),]
+
 ######
 ###Effect of Effort Treatment on Time to Click 1 Tile
 ######
+d.quality.final$ID_Player <- coerce_index(d.quality.final$ID_Player)
 
-qq1 <- map2stan(
+m.quality.2 <- map2stan(
   alist(
     ElapsedTime_Tile ~ dnorm(mu, sigma), 
     mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort,
     bC ~ dnorm(0, 10), 
     bE ~ dnorm(0, 10), 
     bCE ~ dnorm(0, 10),
-    bNs ~ dnorm(0, 10),
     a ~ dgamma(1.5, 0.05), 
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1.5, 0.05),
     sigma ~ dgamma(2, 0.5)
-  ), data=data.c, iter=3000, chains=3, cores=4, warmup=500)
+  ), data=d.quality.final, iter=30000, chains=5, cores=5, warmup=500)
 
-plot(qq1)
+plot(m.quality.2)
 par(mfrow=c(1,1))
-precis(qq1, prob=0.95)
-plot(precis(qq1, prob=0.95), xlab = "Time (seconds) to Click 1 Tile")
+precis(m.quality.2, prob=0.95)
+plot(precis(m.quality.2, prob=0.95), xlab = "Time (seconds) to Click 1 Tile")
 
 ######
 ###Competition Attention Check###
 ######
 
 df_comp <- aggregate(cbind(CompCheck, Competition) ~ ID_Player,
-                                  data=data.c, FUN=unique)
+                     data=d.quality.final, FUN=unique)
 q2 <- map2stan(
   alist(
     CompCheck ~ dbinom(1, theta), 
     logit(theta) <- a + bC*Competition, 
     bC ~ dnorm(0, 10), 
     a ~ dnorm(0, 10)
-  ), data=df_comp, iter=10000, chains=3, cores = 3, warmup=1000)
+  ), data=df_comp, iter=10000, chains=2, cores = 2, warmup=500)
 
 plot(q2)
 par(mfrow=c(1,1))
@@ -198,13 +125,20 @@ logistic(5)
 ###Confirmatory Analyses###
 ##########################
 
+#Standardize number of majority tiles
+d.conf_1_2.c$n_major.s <- (d.conf_1_2.c$n_major - mean(d.conf_1_2.c$n_major)) / sd(d.conf_1_2.c$n_major)
+d.conf_3_math.c$n_major.s <- (d.conf_3_math.c$n_major - mean(d.conf_3_math.c$n_major)) / sd(d.conf_3_math.c$n_major)
+
+#Aggregate data for each participant for confirmatory analyses 1 and 2
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+                       Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.c, FUN = mean)
+
+d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
+d.conf.agg$Sex <- as.integer(d.conf.agg$Sex)
+
 ######
 ###Effect of competition and effort on number of tiles revealed###
 ######
-
-d.tiles <- data.c
-d.tiles <- aggregate(TilesRevealed ~ ID_Player + Guess_Number + Effort + Competition + n_major.s, 
-                     data=d.tiles, FUN = mean)
 
 m.tiles <- map2stan(
   alist(
@@ -219,7 +153,7 @@ m.tiles <- map2stan(
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1.5, 0.05),
     sigma ~ dgamma(2, 0.5)
-  ), data=d.tiles, iter=3500, chains=1, cores=1, warmup=500)
+  ), data=d.conf.agg, iter=8000, chains=2, cores=2, warmup=500)
 
 plot(m.tiles)
 par(mfrow=c(1,1))
@@ -237,17 +171,17 @@ d.pred <- list(
 )
 
 #replace varying intercept samples with zeros
-a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(data.c$ID_Player)))
+a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.conf.agg$ID_Player)))
 
 m.tiles.link <- link(m.tiles, n=2000, data=d.pred, 
                  replace = list(a_player=a_player_zeros))
 
 #summarize#
-pred.p.mean <- apply(m.tiles.link , 2 , mean)
-pred.p.PI <- apply( m.tiles.link , 2 , HPDI , prob=0.95)
+pred.p.mean <- apply(m.tiles.link$mu , 2 , mean)
+pred.p.PI <- apply( m.tiles.link$mu , 2 , HPDI , prob=0.95)
 
 ### plot the raw data and the 95% HPDI from m.tiles ###
-d.gg.f <- d.tiles
+d.gg.f <- d.conf.agg
 d.gg.f$mean <- NA
 d.gg.f$low_ci <- NA
 d.gg.f$high_ci <- NA
@@ -310,7 +244,6 @@ shade( pred.p.PI_sorted , 1:4 , col=col.alpha(rangi2, 0.15))
 ######
 ###Effect of competition and effort on accuracy###
 ######
-
 d.acc <- data.c
 d.acc <- aggregate(Correct_Guess ~ ID_Player + Guess_Number + Effort + Competition + n_major.s, 
                      data=d.acc, FUN = mean)
@@ -373,7 +306,6 @@ n
 ##########
 ###Effect of competition on effort (i.e. time to accurately solve an arithmetic problem)###
 #########
-
 m.effort <- map2stan(
   alist(
     ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
