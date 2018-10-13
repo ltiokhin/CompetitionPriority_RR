@@ -3,8 +3,10 @@ rm(list=ls())
 
 #########
 library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(dplyr)
 library(rethinking)
-library(effects)
 library(sjPlot)
 library(stringr)
 library(RColorBrewer)
@@ -16,25 +18,20 @@ library(RColorBrewer)
 sequences <- read.table("Sequences1.txt", header=FALSE) #the sequence of blue and yellow tiles for each grid
 
 ###Cleaning and Data Prep###
-d.quality.c <- d.quality[complete.cases(d.quality[c(1:8, 10)]),]
-d.conf_1_2.c <- d.conf_1_2[complete.cases(d.conf_1_2),]
-d.conf_3_math.c <- d.conf_3_math[complete.cases(d.conf_3_math),]
 
-#exclude participants who indicated technical difficulties
-d.quality.c <- d.quality.c[d.quality.c$ID_Player != 26,]
-d.conf_1_2.c <- d.conf_1_2.c[d.conf_1_2.c$ID_Player != 26,]
-d.conf_3_math.c <- d.conf_3_math.c[d.conf_3_math.c$ID_Player != 26,]
+###Store original data in separate objects###
+d.conf_1_2.b <- d.conf_1_2
+d.conf_3_math.b <- d.conf_3_math
 
-d.quality.c <- d.quality.c[d.quality.c$ID_Player != 61,]
-d.conf_1_2.c <- d.conf_1_2.c[d.conf_1_2.c$ID_Player != 61,]
-d.conf_3_math.c <- d.conf_3_math.c[d.conf_3_math.c$ID_Player != 61,]
+#Exclude participants who indicated technical difficulties
+d.conf_1_2.b <- d.conf_1_2.b[d.conf_1_2.b$ID_Player != 26,]
+d.conf_3_math.b <- d.conf_3_math.b[d.conf_3_math.b$ID_Player != 26,]
+d.conf_1_2.b <- d.conf_1_2.b[d.conf_1_2.b$ID_Player != 61,]
+d.conf_3_math.b <- d.conf_3_math.b[d.conf_3_math.b$ID_Player != 61,]
 
-#Number of participants in each treatment, before excluding individual observations
-#within participants
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Female" & d.conf_1_2.c$Effort==1])) 
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Female" & d.conf_1_2.c$Effort==0])) 
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Male" & d.conf_1_2.c$Effort==1])) 
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Male" & d.conf_1_2.c$Effort==0])) 
+#Exclude rows with NA's, but keep participants who did not complete study
+d.conf_1_2.b <- d.conf_1_2.b[complete.cases(d.conf_1_2.b[,c(1:4, 6:12)]),]
+d.conf_3_math.b <- d.conf_3_math.b[complete.cases(d.conf_3_math.b[,c(1:4, 6:17)]),]
 
 ###for each of the 600 possible sequences, the number of majority tiles (i.e. effect size)###
 seq.df <- data.frame(seq = sequences)
@@ -55,198 +52,98 @@ g_15 <- which(n_majority == 15)
 g_17 <- which(n_majority == 17)
 
 #adds this to relevant data sets
-d.conf_1_2.c$n_major <- rep(NA, nrow(d.conf_1_2.c))
-d.conf_3_math.c$n_major <- rep(NA, nrow(d.conf_3_math.c))
+d.conf_1_2.b$n_major <- rep(NA, nrow(d.conf_1_2.b))
+d.conf_3_math.b$n_major <- rep(NA, nrow(d.conf_3_math.b))
 
-for(i in 1:nrow(d.conf_1_2.c)){
-  if(d.conf_1_2.c$Guess_Number[i] %in% g_13){d.conf_1_2.c$n_major[i] <- 13}
-  if(d.conf_1_2.c$Guess_Number[i] %in% g_15){d.conf_1_2.c$n_major[i] <- 15}
-  if(d.conf_1_2.c$Guess_Number[i] %in% g_17){d.conf_1_2.c$n_major[i] <- 17}
+for(i in 1:nrow(d.conf_1_2.b)){
+  if(d.conf_1_2.b$Guess_Number[i] %in% g_13){d.conf_1_2.b$n_major[i] <- 13}
+  if(d.conf_1_2.b$Guess_Number[i] %in% g_15){d.conf_1_2.b$n_major[i] <- 15}
+  if(d.conf_1_2.b$Guess_Number[i] %in% g_17){d.conf_1_2.b$n_major[i] <- 17}
 }
 
-for(i in 1:nrow(d.conf_3_math.c)){
-  if(d.conf_3_math.c$Guess_Number[i] %in% g_13){d.conf_3_math.c$n_major[i] <- 13}
-  if(d.conf_3_math.c$Guess_Number[i] %in% g_15){d.conf_3_math.c$n_major[i] <- 15}
-  if(d.conf_3_math.c$Guess_Number[i] %in% g_17){d.conf_3_math.c$n_major[i] <- 17}
+for(i in 1:nrow(d.conf_3_math.b)){
+  if(d.conf_3_math.b$Guess_Number[i] %in% g_13){d.conf_3_math.b$n_major[i] <- 13}
+  if(d.conf_3_math.b$Guess_Number[i] %in% g_15){d.conf_3_math.b$n_major[i] <- 15}
+  if(d.conf_3_math.b$Guess_Number[i] %in% g_17){d.conf_3_math.b$n_major[i] <- 17}
 }
 
-#remove rows with time-until-guess values that are more than 5 standard deviations away from the mean
-agg <- aggregate(ElapsedTime_Guess ~ Guess_Number + ID_Player + Effort + Competition, data=d.quality.c, FUN = mean)
-sd5.times <- mean(agg$ElapsedTime_Guess) + (5 * sd(agg$ElapsedTime_Guess))
-nrow(agg[agg$ElapsedTime_Guess > sd5.times,]) #101 observations excluded
+#Standardize number of majority tiles
+d.conf_1_2.b$n_major.s <- (d.conf_1_2.b$n_major - mean(d.conf_1_2.b$n_major)) / sd(d.conf_1_2.b$n_major)
+d.conf_3_math.b$n_major.s <- (d.conf_3_math.b$n_major - mean(d.conf_3_math.b$n_major)) / sd(d.conf_3_math.b$n_major)
 
-#excluding observations from all datasets
-d.quality.c <- d.quality.c[d.quality.c$ElapsedTime_Guess < sd5.times,]
-d.conf_1_2.c <- d.conf_1_2.c[d.conf_1_2.c$ElapsedTime_Guess < sd5.times,]
-d.conf_3_math.c <- d.conf_3_math.c[d.conf_3_math.c$ElapsedTime_Guess < sd5.times,]
+#Aggregate data for each participant for confirmatory analyses 1 and 2
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+                          Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.b, FUN = mean)
 
-#remove rows with arithmetic-solving-times that are more than 5 standard deviations away from the mean
-sd5.times <- mean(d.conf_3_math.c$ElapsedTime_Math) + (5 * sd(d.conf_3_math.c$ElapsedTime_Math))
-nrow(d.conf_3_math.c[d.conf_3_math.c$ElapsedTime_Math > sd5.times,]) #93 observations excluded
-
-#excluding observations from math dataset
-d.conf_3_math.c <- d.conf_3_math.c[d.conf_3_math.c$ElapsedTime_Math < sd5.times,]
-
-#Number of participants in each treatment, after excluding individual observations
-#within participants
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Female" & d.conf_1_2.c$Effort==1])) 
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Female" & d.conf_1_2.c$Effort==0])) 
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Male" & d.conf_1_2.c$Effort==1])) 
-length(unique(d.conf_1_2.c$ID_Player[d.conf_1_2.c$Sex=="Male" & d.conf_1_2.c$Effort==0])) 
-
-
-
-###########################
-###Quality Checks###
-##########################
-
-#Remove remaining NA's
-d.quality.effortcheck <- d.quality.c[complete.cases(d.quality.c),]
-
-######
-###Effect of Effort Treatment on Time to Click 1 Tile
-######
-
-d.quality.effortcheck$ID_Player <- coerce_index(d.quality.effortcheck$ID_Player)
-
-m.quality1 <- map2stan(
-  alist(
-    ElapsedTime_Tile ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort,
-    bC ~ dnorm(0, 10), 
-    bE ~ dnorm(0, 10), 
-    bCE ~ dnorm(0, 10),
-    a ~ dgamma(1.5, 0.05), 
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1.5, 0.05),
-    sigma ~ dgamma(2, 0.5)
-  ), data=d.quality.effortcheck, iter=30000, chains=5, cores=5, warmup=500)
-
-plot(m.quality1)
-par(mfrow=c(1,1))
-precis(m.quality1, prob=0.95)
-plot(precis(m.quality1, prob=0.95), xlab = "Time (seconds) to Click 1 Tile")
-
-### Means and CI in each treatment ###
-
-d.pred <- list(
-  Competition = c(0, 0, 1, 1), 
-  Effort = c(0, 1, 0, 1), 
-  ID_Player = rep(2, 4) #placeholder
-)
-
-#replace varying intercept samples with zeros
-a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.quality.effortcheck$ID_Player)))
-
-m.quality1.link <- link(m.quality1, n=2000, data=d.pred, 
-                     replace = list(a_player=a_player_zeros))
-
-#summarize#
-pred.p.mean <- apply(m.quality1.link , 2 , mean)
-pred.p.PI <- apply( m.quality1.link , 2 , HPDI , prob=0.95)
-
-
-
-######
-###Competition Attention Check###
-######
-
-df_comp <- aggregate(cbind(CompCheck, Competition) ~ ID_Player,
-                     data=d.quality.c, FUN=unique)
-q2 <- map2stan(
-  alist(
-    CompCheck ~ dbinom(1, theta), 
-    logit(theta) <- a + bC*Competition, 
-    bC ~ dnorm(0, 10), 
-    a ~ dnorm(0, 10)
-  ), data=df_comp, iter=10000, chains=2, cores = 2, warmup=500)
-
-plot(q2)
-par(mfrow=c(1,1))
-precis(q2, prob=0.95)
-plot(precis(q2, prob=0.95), xlab = "Log Odds of Answering 'Yes'")
-
-
+d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
+d.conf.agg$Sex <- as.integer(d.conf.agg$Sex)
 
 ###########################
 ###Exploratory Analyses###
 ##########################
 
-#Standardize number of majority tiles
-d.conf_1_2.c$n_major.s <- (d.conf_1_2.c$n_major - mean(d.conf_1_2.c$n_major)) / sd(d.conf_1_2.c$n_major)
-d.conf_3_math.c$n_major.s <- (d.conf_3_math.c$n_major - mean(d.conf_3_math.c$n_major)) / sd(d.conf_3_math.c$n_major)
+###Repeating confirmatory analyses without excluding 1)  outliers or 2) participants who did not complete the study
 
-#Aggregate data for each participant for confirmatory analyses 1 and 2
-d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
-                       Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.c, FUN = mean)
+######
+###Effect of competition and effort on number of tiles revealed###
+######
 
-d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
-d.conf.agg$Sex <- as.integer(d.conf.agg$Sex)
-
-#number of participants in each treatment
-length(unique(d.conf.agg$ID_Player[d.conf.agg$Competition==0 & d.conf.agg$Effort==0])) 
-length(unique(d.conf.agg$ID_Player[d.conf.agg$Competition==1 & d.conf.agg$Effort==0]))
-length(unique(d.conf.agg$ID_Player[d.conf.agg$Competition==0 & d.conf.agg$Effort==1])) 
-length(unique(d.conf.agg$ID_Player[d.conf.agg$Competition==1 & d.conf.agg$Effort==1]))
-
-###Interaction with Sex 
-d.conf.agg$Sex[d.conf.agg$Sex==1] <- 0
-d.conf.agg$Sex[d.conf.agg$Sex==2] <- 1
-
-m.tiles.sex <- map2stan(
+m.tiles.noexclusion <- map2stan(
   alist(
     TilesRevealed ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + gamma*Competition + zeta*Effort + bS*Sex + bNs*n_major.s, 
-    gamma <- bC + bCS*Sex,
-    zeta <- bE + bES*Sex,
-    bC ~ dnorm(0, 10), 
-    bS ~ dnorm(0, 10), 
-    bE ~ dnorm(0, 10), 
-    bES ~ dnorm(0, 10), 
-    bCS ~ dnorm(0, 10),
-    bNs ~ dnorm(0, 10),
-    a ~ dunif(0, 25), 
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1.5, 0.05),
-    sigma ~ dgamma(2, 0.5)
-  ), data=d.conf.agg, iter=6000, chains=2, cores=2, warmup=500)
-
-plot(m.tiles.sex)
-par(mfrow=c(1,1))
-precis(m.tiles.sex, prob = 0.95)
-plot(precis(m.tiles.sex, prob = 0.95), xlab = "Tiles Revealed")
-
-###Effort*Guess_Number Interaction (TBD)
-
-m.tiles.guess <- map2stan(
-  alist(
-    TilesRevealed ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bG*Guess_Number +
-      bCG*Competition*Guess_Number + bNs*n_major.s, 
+    mu <- a + a_player[ID_Player] + gamma*Competition + bE*Effort + bNs*n_major.s, 
     gamma <- bC + bCE*Effort,
     bC ~ dnorm(0, 10), 
     bE ~ dnorm(0, 10), 
     bCE ~ dnorm(0, 10),
-    bG ~ dnorm(0, 10), 
-    bCG ~ dnorm(0, 10),
     bNs ~ dnorm(0, 10),
     a ~ dunif(0, 25), 
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1.5, 0.05),
     sigma ~ dgamma(2, 0.5)
-  ), data=d.conf.agg, iter=8000, chains=3, cores=3, warmup=500)
+  ), data=d.conf.agg, iter=20000, chains=4, cores=4, warmup=500)
 
-plot(m.tiles.sex)
+plot(m.tiles.noexclusion)
 par(mfrow=c(1,1))
-precis(m.tiles.sex, prob = 0.95)
-plot(precis(m.tiles.sex, prob = 0.95), xlab = "Tiles Revealed")
+precis(m.tiles.noexclusion, prob = 0.95)
+plot(precis(m.tiles.noexclusion, prob = 0.95), xlab = "Tiles Revealed")
 
+######
+###Effect of competition and effort on accuracy###
+######
 
-
-#math_right or wrong
-m.math.any <- map2stan(
+m.accuracy.noexclusion <- map2stan(
   alist(
-    ElapsedTime_Math ~ dnorm(mu, sigma), 
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=6000, chains = 2, cores = 2, warmup=500)
+
+plot(m.accuracy)
+par(mfrow=c(1,1))
+precis(m.accuracy, prob=0.95)
+plot(precis(m.accuracy, prob=0.95), xlab = "Log Odds of Correct Guess")
+
+##########
+###Effect of competition on effort (i.e. time to accurately solve an arithmetic problem)###
+#########
+
+d.conf_3_math.b$ID_Player <- coerce_index(d.conf_3_math.b$ID_Player)
+d.conf_3_math.b$Sex <- as.integer(d.conf_3_math.b$Sex)
+
+d.math.agg <- aggregate(cbind(ElapsedTime_MathSolved) ~ Effort + Competition + Sex + Tile_Number +
+                          Guess_Number + n_major.s + ID_Player, data=d.conf_3_math.b, FUN = mean)
+
+### Model 3 ###
+m.effort.noexclusion <- map2stan(
+  alist(
+    ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
     mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s, 
     bC ~ dnorm(0, 10), 
     bNs ~ dnorm(0, 10),
@@ -254,22 +151,625 @@ m.math.any <- map2stan(
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1, 0.05),
     sigma ~ dgamma(2, 0.5)
-  ), data=d.conf_3_math.c, iter=5000, chains = 3, cores = 3, warmup=500)
+  ), data=d.math.agg, iter=20000, chains = 3, cores = 3, warmup=500)
 
-plot(m.math.any)
+plot(m.effort.noexclusions)
 par(mfrow=c(1,1))
-precis(m.math.any, prob=0.95)
-plot(precis(m.math.any, prob=0.95), xlab = "Time (seconds) to Produce any Answer to One Arithmetic Problem")
+precis(m.effort.noexclusions, prob=0.95)
+plot(precis(m.effort.noexclusions, prob=0.95), xlab = "Time (seconds) to Accurately Solve One Arithmetic Problem")
 
-###interaction with sex
+
+##############
+###Table with parameter estimates from models without exclusions
+##############
+
+precis_tiles <- precis(m.tiles.noexclusion, depth=1, prob = 0.95)
+precis_tiles <- precis_tiles@output
+precis_tiles <- round(precis_tiles, 2)
+precis_tiles <- precis_tiles[1:5, c(1, 3, 4)]
+precis_tiles <- rename(precis_tiles, `Lower 0.95` = `lower 0.95`)
+precis_tiles <- rename(precis_tiles, `Upper 0.95` = `upper 0.95`)
+
+row.names(precis_tiles) <- c("1. Competition", "1. Effort", "1. Competition x Effort Interaction", 
+                             "1. Effect Size", "1. Intercept")
+
+precis_accuracy <- precis(m.accuracy.noexclusion, depth=1, prob = 0.95)
+precis_accuracy <- precis_accuracy@output
+precis_accuracy <- round(precis_accuracy, 2)
+precis_accuracy <- precis_accuracy[1:5, c(1, 3, 4)]
+precis_accuracy <- rename(precis_accuracy, `Lower 0.95` = `lower 0.95`)
+precis_accuracy <- rename(precis_accuracy, `Upper 0.95` = `upper 0.95`)
+
+row.names(precis_accuracy) <- c("2. Competition", "2. Effort", "2. Competition x Effort Interaction", 
+                                "2. Effect Size", "2. Intercept")
+
+precis_e <- precis(m.effort.noexclusion, depth=1, prob = 0.95)
+precis_e <- precis_e@output
+precis_e <- round(precis_e, 2)
+precis_e <- precis_e[1:3, c(1, 3, 4)]
+precis_e <- rename(precis_e, `Lower 0.95` = `lower 0.95`)
+precis_e <- rename(precis_e, `Upper 0.95` = `upper 0.95`)
+
+row.names(precis_e) <- c("3. Competition",  
+                         "3. Effect Size", "3. Intercept")
+
+mcomb_df <- rbind(precis_tiles, precis_accuracy, precis_e)
+
+mcomb_df %>% kable(caption = "CONFIRMATORY MODELS WITHOUT EXCLUSIONS")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1, width = "5cm") %>%
+  column_spec(2:4, width = "2cm") %>%
+  group_rows("Model 1: Tiles Revealed", 1, 5) %>%
+  group_rows("Model 2: Accuracy", 6, 10) %>%
+  group_rows("Model 3: Time (seconds) to Accurately Solve One Arithmetic Problem", 11, 13)
+
+#############
+###Repeating confirmatory analyses with extra exclusions: in addition to excluding participants who did###
+#not complete the study, and excluding time-until-guess and arithmetic-solving-times more than 5 standard deviations
+#away from the mean, this analysis also excludes participants who removed 0 tiles when guessing.
+############
+
+#Exclude participants who did not complete study
+d.conf_1_2.complete <- d.conf_1_2.b[complete.cases(d.conf_1_2.b),]
+d.conf_3_math.complete <- d.conf_3_math.b[complete.cases(d.conf_3_math.b),]
+
+#remove rows with time-until-guess values that are more than 5 standard deviations away from the mean
+agg <- aggregate(ElapsedTime_Guess ~ Guess_Number + ID_Player + Effort + Competition, data=d.conf_1_2.complete, FUN = mean)
+sd5.times <- mean(agg$ElapsedTime_Guess) + (5 * sd(agg$ElapsedTime_Guess))
+nrow(agg[agg$ElapsedTime_Guess > sd5.times,]) 
+
+#excluding observations from all datasets
+d.conf_1_2.complete <- d.conf_1_2.complete[d.conf_1_2.complete$ElapsedTime_Guess < sd5.times,]
+d.conf_3_math.complete <- d.conf_3_math.complete[d.conf_3_math.complete$ElapsedTime_Guess < sd5.times,]
+
+#remove rows with arithmetic-solving-times that are more than 5 standard deviations away from the mean
+sd5.times <- mean(d.conf_3_math.complete$ElapsedTime_Math) + (5 * sd(d.conf_3_math.complete$ElapsedTime_Math))
+nrow(d.conf_3_math.complete[d.conf_3_math.complete$ElapsedTime_Math > sd5.times,]) 
+
+#excluding observations from math dataset
+d.conf_3_math.complete <- d.conf_3_math.complete[d.conf_3_math.complete$ElapsedTime_Math < sd5.times,]
+
+#exclude participants who revealed 0 tiles
+d.conf_1_2.complete_no0 <- d.conf_1_2.complete[d.conf_1_2.complete$TilesRevealed > 0,]
+d.conf_3_math.complete_no0 <- d.conf_3_math.complete[d.conf_3_math.complete$TilesRevealed > 0,]
+
+#Re-standardize number of majority tiles
+d.conf_1_2.complete_no0$n_major.s <- (d.conf_1_2.complete_no0$n_major - mean(d.conf_1_2.complete_no0$n_major)) 
+                                      / sd(d.conf_1_2.complete_no0$n_major)
+d.conf_3_math.complete_no0$n_major.s <- (d.conf_3_math.complete_no0$n_major - mean(d.conf_3_math.complete_no0$n_major)) 
+                                      / sd(d.conf_3_math.complete_no0$n_major)
+
+#Aggregate data for each participant for confirmatory analyses 1 and 2
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+                          Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.complete_no0, FUN = mean)
+
+d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
+d.conf.agg$Sex <- as.integer(d.conf.agg$Sex)
+
+######
+###Effect of competition and effort on number of tiles revealed###
+######
+
+m.tiles.superexclusion <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + gamma*Competition + bE*Effort + bNs*n_major.s, 
+    gamma <- bC + bCE*Effort,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=15000, chains=4, cores=4, warmup=500)
+
+plot(m.tiles.superexclusion)
+par(mfrow=c(1,1))
+precis(m.tiles.superexclusion, prob = 0.95)
+plot(precis(m.tiles.superexclusion, prob = 0.95), xlab = "Tiles Revealed")
+
+######
+###Effect of competition and effort on accuracy###
+######
+
+m.accuracy.superexclusion <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+plot(m.accuracy.superexclusion)
+par(mfrow=c(1,1))
+precis(m.accuracy.superexclusion, prob=0.95)
+plot(precis(m.accuracy.superexclusion, prob=0.95), xlab = "Log Odds of Correct Guess")
+
+#########
+###Effect of competition on effort (i.e. time to accurately solve an arithmetic problem)###
+#########
+
+d.conf_3_math.complete_no0$ID_Player <- coerce_index(d.conf_3_math.complete_no0$ID_Player)
+d.conf_3_math.complete_no0$Sex <- as.integer(d.conf_3_math.complete_no0$Sex)
+
+d.math.agg <- aggregate(cbind(ElapsedTime_MathSolved) ~ Effort + Competition + Sex + Tile_Number +
+                          Guess_Number + n_major.s + ID_Player, data=d.conf_3_math.complete_no0, FUN = mean)
+
+### Model 3 ###
+m.effort.superexclusion <- map2stan(
+  alist(
+    ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.math.agg, iter=20000, chains = 3, cores = 3, warmup=500)
+
+plot(m.effort.superexclusion)
+par(mfrow=c(1,1))
+precis(m.effort.superexclusion, prob=0.95)
+plot(precis(m.effort.superexclusion, prob=0.95), xlab = "Time (seconds) to Accurately Solve One Arithmetic Problem")
+
+
+
+##############
+###Table with parameter estimates from models with super exclusions
+##############
+
+precis_tiles <- precis(m.tiles.superexclusion, depth=1, prob = 0.95)
+precis_tiles <- precis_tiles@output
+precis_tiles <- round(precis_tiles, 2)
+precis_tiles <- precis_tiles[1:5, c(1, 3, 4)]
+precis_tiles <- rename(precis_tiles, `Lower 0.95` = `lower 0.95`)
+precis_tiles <- rename(precis_tiles, `Upper 0.95` = `upper 0.95`)
+
+row.names(precis_tiles) <- c("1. Competition", "1. Effort", "1. Competition x Effort Interaction", 
+                             "1. Effect Size", "1. Intercept")
+
+precis_accuracy <- precis(m.accuracy.superexclusion, depth=1, prob = 0.95)
+precis_accuracy <- precis_accuracy@output
+precis_accuracy <- round(precis_accuracy, 2)
+precis_accuracy <- precis_accuracy[1:5, c(1, 3, 4)]
+precis_accuracy <- rename(precis_accuracy, `Lower 0.95` = `lower 0.95`)
+precis_accuracy <- rename(precis_accuracy, `Upper 0.95` = `upper 0.95`)
+
+row.names(precis_accuracy) <- c("2. Competition", "2. Effort", "2. Competition x Effort Interaction", 
+                                "2. Effect Size", "2. Intercept")
+
+precis_e <- precis(m.effort.superexclusion, depth=1, prob = 0.95)
+precis_e <- precis_e@output
+precis_e <- round(precis_e, 2)
+precis_e <- precis_e[1:3, c(1, 3, 4)]
+precis_e <- rename(precis_e, `Lower 0.95` = `lower 0.95`)
+precis_e <- rename(precis_e, `Upper 0.95` = `upper 0.95`)
+
+row.names(precis_e) <- c("3. Competition",  
+                         "3. Effect Size", "3. Intercept")
+
+mcomb_df <- rbind(precis_tiles, precis_accuracy, precis_e)
+
+mcomb_df %>% kable(caption = "CONFIRMATORY MODELS EXCLUDING CASES WHEN PARTICIPANTS GUESSED RANDOMLY (i.e. EXCLUDING TILES REVEALED = 0)")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1, width = "5cm") %>%
+  column_spec(2:4, width = "2cm") %>%
+  group_rows("Model 1: Tiles Revealed", 1, 5) %>%
+  group_rows("Model 2: Accuracy", 6, 10) %>%
+  group_rows("Model 3: Time (seconds) to Accurately Solve One Arithmetic Problem", 11, 13)
+
+##########
+###Sensitivity checks using the exclusion criteria in the main paper
+##########
+
+#Re-standardize number of majority tiles
+d.conf_1_2.complete$n_major.s <- (d.conf_1_2.complete$n_major - mean(d.conf_1_2.complete$n_major)) /
+                                          sd(d.conf_1_2.complete$n_major)
+d.conf_3_math.complete$n_major.s <- (d.conf_3_math.complete$n_major - mean(d.conf_3_math.complete$n_major)) / 
+                                          sd(d.conf_3_math.complete$n_major)
+
+#Aggregate data for each participant for confirmatory analyses 1 and 2
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+                          Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.complete, FUN = mean)
+
+d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
+d.conf.agg$Sex <- as.integer(d.conf.agg$Sex)
+
+d.conf.agg$Sex[d.conf.agg$Sex==1] <- 0 #female
+d.conf.agg$Sex[d.conf.agg$Sex==2] <- 1 #male
+
+###Tiles: No effort 
+
+m.tiles.noE <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+precis(m.tiles.noE, prob = 0.95)
+
+###Tiles: No effort interaction
+
+m.tiles.noE_interaction <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+precis(m.tiles.nointer.guessnum)
+
+###Tiles: original confirmatory analyses 
+
+m.tiles.orig <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+#compare alternative models
+compare(m.tiles.noE, m.tiles.noE_interaction, m.tiles.orig)
+#compare just interaction vs no-interaction models
+compare(m.tiles.noE_interaction, m.tiles.orig)
+
+multi_models <- coeftab(m.tiles.noE, m.tiles.noE_interaction, m.tiles.orig)
+coeftab_plot(multi_models, pars=c("bC", "bE", "bNs","bCE"), 
+             prob = 0.95, col.ci = rangi2)
+
+###Tiles: No effort interaction + guess number
+
+d.conf.agg$Guess_Number.s <- (d.conf.agg$Guess_Number - mean(d.conf.agg$Guess_Number)) / sd(d.conf.agg$Guess_Number)
+
+m.tiles.guessnum <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + bGs*Guess_Number.s, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+###Tiles: main effect of sex####
+m.tiles.sex.nointer <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + bGs*Guess_Number.s + 
+      bS*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+###Tiles: main effect of sex and interaction####
+m.tiles.sex.inter <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + 
+      bNs*n_major.s + bGs*Guess_Number.s + 
+      bS*Sex + bCS*Competition*Sex + bES*Effort*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bCS ~ dnorm(0, 10),
+    bES ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+m.tiles.sex.inter2 <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + 
+      bNs*n_major.s + bGs*Guess_Number.s + 
+      bS*Sex + bCS*Competition*Sex + bES*Effort*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bCS ~ dnorm(0, 10),
+    bES ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+
+#Compare alternative models using information criteria and plot parameter estimates
+compare(m.tiles.guessnum, m.tiles.sex.nointer, m.tiles.sex.inter)
+
+###Interactions with Guess Number and n_major.s
+m.tiles.guess.nmajor.inter <- map2stan( 
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + bGs*Guess_Number.s + 
+      bEGs*Effort*Guess_Number.s + bCGs*Competition*Guess_Number.s +
+      bENs*Effort*n_major.s + bCNs*Competition*n_major.s,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bEGs ~ dnorm(0, 10),
+    bCGs ~ dnorm(0, 10),
+    bENs ~ dnorm(0, 10),
+    bCNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+plot(precis(m.tiles.guess.nmajor.inter))
+
+m.tiles.guess.nmajor.inter2only <- map2stan( 
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + bGs*Guess_Number.s + 
+      bENs*Effort*n_major.s + bCNs*Competition*n_major.s,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bENs ~ dnorm(0, 10),
+    bCNs ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+precis(m.tiles.guess.nmajor.inter2only)
+
+#Final comparison of alternative models for tiles revealed (see if sex should go in here)
+compare(m.tiles.orig, m.tiles.guessnum, m.tiles.sex.inter, m.tiles.sex.inter2,
+        m.tiles.guess.nmajor.inter, m.tiles.guess.nmajor.inter2only, 
+        m.tiles.noE)
+
+####RUUNNING SEX INTERACTION MODEL - REDO THE MULTIMODELS AND COEFPLOT FOR TILES AND ACCURACY
+
+multi_models <- coeftab( 
+                        m.tiles.guess.nmajor.inter, 
+                        m.tiles.guess.nmajor.inter2only, 
+                        m.tiles.guessnum,
+                        m.tiles.sex.inter,
+                        m.tiles.sex.inter2,
+                        m.tiles.orig)
+
+coeftab_plot(multi_models, pars=c("bC", "bE", "bNs", "bGs", "bCE", "bES", "bCS",
+                                  "bENs", "bCNs", "bCGs", "bEGs"), 
+                            prob = 0.95, col.ci = rangi2, main = "Tiles Revealed")
+
+#concise
+coeftab_plot(multi_models, pars=c("bC", "bE", "bCE", "bNs"), 
+             prob = 0.95, col.ci = rangi2, main = "Tiles Revealed")
+
+#####Visualize raw data: guess number against tiles revealed. 
+plot(d.conf.agg$TilesRevealed[d.conf.agg$Competition==0 &
+                                 d.conf.agg$Effort==0] ~ 
+       d.conf.agg$Guess_Number[d.conf.agg$Competition==0 &
+                                 d.conf.agg$Effort==0], 
+     col=col.alpha(rangi2, alpha = 0.4))
+
+###Accuracy###
+m_accuracy_orig.guess <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + 
+      bCE*Competition*Effort + bNs*n_major.s + bGs*Guess_Number.s,  
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+m_accuracy_componly <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s,
+    bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+m_accuracy_sex <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s + bS*Sex, 
+    bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+m_accuracy_sex_inter <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + 
+      bGs*Guess_Number.s + bS*Sex + bNsS*n_major.s*Sex + bCS*Competition*Sex + bES*Effort*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10),
+    bNsS ~ dnorm(0, 10), 
+    bCS ~ dnorm(0, 10), 
+    bES ~ dnorm(0, 10), 
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+m_accuracy_nmajor_sex_inters <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + 
+      bGs*Guess_Number.s + bS*Sex + bNsS*n_major.s*Sex + 
+      bENs*Effort*n_major.s + bCNs*Competition*n_major.s,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bNsS ~ dnorm(0, 10), 
+    bENs ~ dnorm(0, 10),
+    bCNs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+m_accuracy_compeff_guess_nmajor_inter <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + 
+      bGs*Guess_Number.s + bCE*Competition*Effort + 
+      bENs*Effort*n_major.s + bCNs*Competition*n_major.s,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10), 
+    bENs ~ dnorm(0, 10),
+    bCNs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+plot(precis(m_accuracy_compeff_guess_nmajor_inter))
+
+#compare alternative models using information criteria
+compare(
+  m_accuracy_nmajor_sex_inters,
+  m_accuracy_compeff_guess_nmajor_inter,
+  m_accuracy_sex_inter, 
+  m_accuracy_componly, 
+  m_accuracy_sex, 
+  m_accuracy_orig.guess)
+
+multi_models_accuracy <- coeftab(
+                        m_accuracy_nmajor_sex_inters,
+                        m_accuracy_compeff_guess_nmajor_inter,
+                        m_accuracy_sex_inter, 
+                        m_accuracy_sex, 
+                        m_accuracy_orig.guess)
+
+#full plot
+coeftab_plot(multi_models_accuracy, 
+             pars=c("bC", "bE", "bNs", "bGs", "bS", "bCE", "bENs", "bCNs",  "bCS", "bES", "bNsS"), 
+             prob = 0.95, col.ci = rangi2, 
+             main = "Accuracy: Log Odds of Correct Guess")
+#concise
+coeftab_plot(multi_models_accuracy, 
+             pars=c("bC", "bE", "bNs", "bCE"),
+             prob = 0.95, col.ci = rangi2, main = "Accuracy: Log Odds of Correct Guess")
+
+#Arithmetic problems
+
+d.conf_3_math.complete$ID_Player <- coerce_index(d.conf_3_math.complete$ID_Player)
+d.conf_3_math.complete$Sex <- as.integer(d.conf_3_math.complete$Sex)
+
+d.math.agg <- aggregate(cbind(ElapsedTime_MathSolved, ElapsedTime_Math) ~ Effort + Competition + 
+                          Sex + Tile_Number + Guess_Number + n_major.s + ID_Player, 
+                        data=d.conf_3_math.complete, FUN = mean)
+
+d.math.agg$Guess_Number.s <- (d.math.agg$Guess_Number - mean(d.math.agg$Guess_Number)) / sd(d.math.agg$Guess_Number)
+
+
 d.math.agg$Sex[d.math.agg$Sex==1] <- 0
 d.math.agg$Sex[d.math.agg$Sex==2] <- 1
 
-m.effort.interact <- map2stan(
+m_effort_orig <- map2stan(
   alist(
     ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bS*Sex + bCS*Competition*Sex + bNs*n_major.s, 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s, 
     bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
+
+m_effort_guessnum <- map2stan(
+  alist(
+    ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s,
+    bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
+
+compare(m_effort_orig, m_effort_guessnum)
+
+m_effort_sex_inter <- map2stan(
+  alist(
+    ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s +
+      bS*Sex + bCS*Competition*Sex, 
+    bC ~ dnorm(0, 10), 
+    bGs ~ dnorm(0, 10),
     bS ~ dnorm(0, 10), 
     bCS ~ dnorm(0, 10), 
     bNs ~ dnorm(0, 10),
@@ -277,263 +777,203 @@ m.effort.interact <- map2stan(
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1, 0.05),
     sigma ~ dgamma(2, 0.5)
-  ), data=d.math.agg, iter=8000, chains = 3, cores = 3, warmup=500)
+  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
 
-plot(m.effort.interact)
-par(mfrow=c(1,1))
-precis(m.effort.interact, prob=0.95)
-plot(precis(m.effort.interact, prob=0.95), xlab = "Time (seconds) to Accurately Solve One Arithmetic Problem")
+m_effort_inters <- map2stan(
+  alist(
+    ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s +
+      bS*Sex + bCS*Competition*Sex + bGsS*Guess_Number.s*Sex + bCGs*Competition*Guess_Number.s,
+    bC ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bCS ~ dnorm(0, 10), 
+    bGsS ~ dnorm(0, 10), 
+    bCGs ~ dnorm(0, 10), 
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
 
+plot(precis(m_effort_inters))
 
+#compare alternative models
+compare(m_effort_inters, m_effort_sex_inter, m_effort_guessnum, m_effort_orig)
 
-####frequentist
-data_math.cF <- data_math.c
-data_math.cF$ID_Player <- as.factor(data_math.cF$ID_Player)
-data_math.cF$Competition <- as.factor(data_math.cF$Competition)
-data_math.cF$Sex <- as.factor(data_math.cF$Sex)
+multi_models_effort <- coeftab(m_effort_inters, m_effort_sex_inter, m_effort_guessnum, m_effort_orig)
 
-m.math.freq <- lmer(ElapsedTime_MathSolved ~ Competition*Sex + n_major.s + (1|ID_Player), data=data_math.cF)
-summary(m.math.freq)
-plot(allEffects(m.math.freq))
+#full plot
+coeftab_plot(multi_models_effort, 
+             pars=c("bC", "bNs", "bGs", "bS",  "bCS", "bGsS", "bCGs"), 
+             prob = 0.95, col.ci = rangi2)
+#part of plot
+coeftab_plot(multi_models_effort, 
+             pars=c("bC", "bNs", "bGs", "bS",  "bCS"), 
+             prob = 0.95, col.ci = rangi2, main = "Time (seconds) to Accurately Solve One Arithmetic Problem")
 
-#save workspace
-save.image(file = "Confirmatory_plus_Exploratory_Analyses.RData")
+#time to produce any answer (i.e correct or incorrect)
 
+m_math_any_sex_inter <- map2stan(
+  alist(
+    ElapsedTime_Math ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s +
+      bS*Sex + bCS*Competition*Sex, 
+    bC ~ dnorm(0, 10), 
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bCS ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
 
-##############
-#Supplemental Exploratory
-##############
-# 
-# 
-# #limiting analysis to instances when math problems answered correctly
-# data_math.c.correct <- data_math.c[data_math.c$Correct_Math==1,]
-# 
-# m.6.b <- map2stan(
-#   alist(
-#     ElapsedTime_Math ~ dnorm(mu, sigma), 
-#     mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s, 
-#     bC ~ dnorm(0, 10), 
-#     bNs ~ dnorm(0, 10),
-#     a ~ dgamma(1.5, 0.05), 
-#     a_player[ID_Player] ~ dnorm(0, sigma_player),
-#     sigma_player ~ dgamma(1.5, 0.05), 
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data_math.c.correct, iter=10000, chains=3, warmup=1000)
-# 
-# plot(m.6.b)
-# pairs(m.6.b, pars=c("bC", "bNs", "a", "sigma"))
-# par(mfrow=c(1,1))
-# precis(m.6.b, prob=0.95)
-# plot(precis(m.6.b, prob=0.95), xlab = "Time (seconds) Spent on Accurately-Solved Arithmetic Problems")
-# 
-# #Frequentist
-# data_math.c.correct.f <- data_math.c.correct
-# data_math.c.correct.f$Competition <- as.factor(data_math.c.correct.f$Competition)
-# data_math.c.correct.f$ID_Player <- as.factor(data_math.c.correct.f$ID_Player)
-# 
-# m.6.f <- lmer(ElapsedTime_Math ~ Competition + n_major.s + (1|ID_Player), 
-#               data=data_math.c.correct.f, REML=FALSE)
-# sjt.lmer(m.6.f,
-#          show.icc=FALSE, show.col.header = TRUE,
-#          string.est = "Estimate",
-#          string.ci = "CI", 
-#          string.p = "P", 
-#          separate.ci.col = FALSE, 
-#          group.pred = TRUE, 
-#          file = "ElapsedTime_Math.doc")
-# 
-# plot(allEffects(m.6.f))
-# plot(effect("Competition", m.6.f))
-# 
-# #Rate of Accurate Guesses
-# m.7.b <- map2stan(
-#   alist(
-#     correct_guessrate ~ dnorm(mu, sigma), 
-#     mu <- a + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*mean_n_major.s, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     bNs ~ dnorm(0, 10),
-#     a ~ dgamma(1.5, 0.05), 
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.rate, iter=10000, chains=3, warmup=1000)
-# 
-# plot(m.7.b)
-# pairs(m.7.b)
-# precis(m.7.b)
-# par(mfrow=c(1,1))
-# plot(precis(m.7.b, prob=0.95), xlab = "Accurate Guesses per Minute")
-# 
-# #Frequentist
-# data.rate.f <- data.rate
-# data.rate.f$Competition <- as.factor(data.rate.f$Competition)
-# data.rate.f$ID_Player <- as.factor(data.rate.f$ID_Player)
-# data.rate.f$Effort <- as.factor(data.rate.f$Effort)
-# 
-# m.7.f <- lm(correct_guessrate ~ Competition*Effort + mean_n_major.s, 
-#               data=data.rate.f)
-# sjt.lm(m.7.f,
-#          show.icc=FALSE, show.col.header = TRUE,
-#          string.est = "Estimate",
-#          string.ci = "CI", 
-#          string.p = "P", 
-#          separate.ci.col = FALSE, 
-#          group.pred = TRUE, 
-#        file = "CorrectGuessRate.doc")
-# 
-# plot(allEffects(m.7.f))
-# plot(effect("Competition*Effort", m.7.f))
-# 
-# #Rate of Acquiring Points
-# m.8.b <- map2stan(
-#   alist(
-#     points_rate ~ dnorm(mu, sigma), 
-#     mu <- a + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*mean_n_major.s, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     bNs ~ dnorm(0, 10),
-#     a ~ dgamma(1.5, 0.05), 
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.rate, iter=10000, chains=3, warmup=1000)
-# 
-# plot(m.8.b)
-# pairs(m.8.b)
-# precis(m.8.b)
-# par(mfrow=c(1,1))
-# plot(precis(m.8.b, prob=0.95), xlab = "Points per Minute")
-# 
-# #Frequentist
-# m.8.f <- lm(points_rate ~ Competition*Effort + mean_n_major.s, 
-#             data=data.rate.f)
-# sjt.lm(m.8.f,
-#        show.icc=FALSE, show.col.header = TRUE,
-#        string.est = "Estimate",
-#        string.ci = "CI", 
-#        string.p = "P", 
-#        separate.ci.col = FALSE, 
-#        group.pred = TRUE, 
-#        file = "PointsRate.doc")
-# 
-# plot(allEffects(m.8.f))
-# plot(effect("Competition*Effort", m.8.f))
-# 
-# #################
-# #Alternate (bad) model specifications 
-# #result in high levels of autocorelaton between samples for at least 1 of the parameters
-#####################################
-# 
-# m <- map2stan(
-#   alist(
-#     ElapsedTime_Guess ~ dnorm(mu, sigma), 
-#     mu <- a + a_player[ID_Player] + a_effect[n_major] + bC*Competition + bE*Effort + bCE*Competition*Effort, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     a ~ dgamma(1.5, 0.05), 
-#     a_player[ID_Player] ~ dnorm(0, sigma_player),
-#     sigma_player ~ dgamma(1.5, 0.05),
-#     a_effect[n_major] ~ dnorm(0, sigma_n_major), 
-#     sigma_n_major ~ dgamma(1.5, 0.05),
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.c, iter=3000, chains=1, warmup=1000)
-# 
-# plot(m)
-# pairs(m, pars=c("bC", "bE", "bCE", "a", "sigma_n_major", "a_effect"))
-# 
-# g <- map2stan(
-#   alist(
-#     ElapsedTime_Guess ~ dnorm(mu, sigma), 
-#     mu <- a + a_player[ID_Player] + a_guess[Guess_Number] + bC*Competition + bE*Effort + bCE*Competition*Effort, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     a ~ dgamma(1.5, 0.05), 
-#     a_player[ID_Player] ~ dnorm(0, sigma_player),
-#     sigma_player ~ dgamma(1.5, 0.05),
-#     a_guess[Guess_Number] ~ dnorm(0, sigma_guess), 
-#     sigma_guess ~ dgamma(1.5, 0.05),
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.c, iter=3000, chains=1, warmup=1000)
-# 
-# plot(g)
-# pairs(g, pars=c("bC", "bE", "bCE", "a", "sigma_n_major", "a_effect"))
-# 
-# z <- map2stan(
-#   alist(
-#     ElapsedTime_Guess ~ dnorm(mu, sigma), 
-#     mu <- a + a_player[ID_Player] + a_effect[n_major] + bC*Competition + bE*Effort + bCE*Competition*Effort, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     a ~ dgamma(1.5, 0.05), 
-#     a_player[ID_Player] ~ dnorm(0, sigma_player),
-#     sigma_player ~ dgamma(1.5, 0.05),
-#     a_effect[n_major] ~ dnorm(0, 10), 
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.c, iter=3000, chains=1, warmup=1000)
-# 
-# plot(z)
-# pairs(z, pars=c("bC", "bE", "bCE", "a", "a_effect", "sigma"))
-# precis(z)
-# 
-# zz <- map2stan(
-#   alist(
-#     ElapsedTime_Guess ~ dnorm(mu, sigma), 
-#     mu <- a_player[ID_Player] + a_effect[n_major] + bC*Competition + bE*Effort + bCE*Competition*Effort, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     a_player[ID_Player] ~ dnorm(0, sigma_player),
-#     sigma_player ~ dgamma(1.5, 0.05),
-#     a_effect[n_major] ~ dnorm(0, 10), 
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.c, iter=3000, chains=1, warmup=1000)
-# 
-# plot(zz)
-# pairs(zz, pars=c("bC", "bE", "bCE", "a_effect", "sigma"))
-# precis(zz)
-# 
-# guessrate_bad <- map2stan(
-#   alist(
-#     guessrate ~ dnorm(mu, sigma), 
-#     mu <- a + bC*Competition + bE*Effort + bCE*Competition*Effort + bN*mean_n_major, 
-#     bC ~ dnorm(0, 10), 
-#     bE ~ dnorm(0, 10), 
-#     bCE ~ dnorm(0, 10),
-#     bN ~ dnorm(0, 10),
-#     a ~ dnorm(0, 10), 
-#     sigma ~ dgamma(2, 0.5)
-#   ), data=data.rate, iter=4000, chains=1, warmup=1000)
-# 
-# plot(guessrate_bad)
-# pairs(guessrate_bad)
-# precis(guessrate_bad)
-# 
-# plot(coeftab(guessrate_bad))
+plot(precis(m_math_any_sex_inter, prob=0.95), 
+     main = "Time (seconds) to Produce Any Answer to One Arithmetic Problem", 
+     xlab = "Estimate", 
+     col.ci = rangi2)
+
+########
+###Time to reveal a single tile (need to add elapsedtime_tile to dataset)
+######
+d.timetile.agg <- aggregate(cbind(ElapsedTime_Tile) ~ Effort + Competition + Tile_Number +
+                              Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.complete, FUN = mean)
+
+d.timetile.agg$ID_Player <- coerce_index(d.timetile.agg$ID_Player)
+d.timetile.agg$Sex <- as.integer(d.timetile.agg$Sex)
+
+m_tile_time <- map2stan(
+  alist(
+    ElapsedTime_Tile ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + 
+      bNs*n_major.s,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.timetile.agg, iter=5000, chains = 3, cores = 3, warmup=500)
 
 
+###########
+###Reward per unit time, without outlier removal###
+###########
+df.reward <- d.conf_1_2.b[complete.cases(d.conf_1_2.b),]
 
-############
+d.reward.agg <- aggregate(cbind(Reward) ~ Effort + Competition + Sex +
+                          Correct_Guess + ElapsedTime_Guess + ID_Player, 
+                        data=df.reward, FUN = mean)
 
-agg <- aggregate(TilesRevealed ~ Guess_Number + Competition + Effort, data=data.c, FUN = mean)
+df_sum_times <- aggregate(ElapsedTime_Guess ~ ID_Player, data=d.reward.agg, FUN = sum)
 
-plot(TilesRevealed ~ Guess_Number, data = agg[agg$Competition==0 & agg$Effort==0,], main = "no comp no effort")
-plot(TilesRevealed ~ Guess_Number, data = agg[agg$Competition==0 & agg$Effort==1,], main = "no comp,yes effort")
+#total time for each player
+d.reward.agg$totaltime <- NA
+for (i in unique(df_sum_times$ID_Player)){
+              d.reward.agg$totaltime[d.reward.agg$ID_Player == i] <- 
+                    df_sum_times$ElapsedTime_Guess[df_sum_times$ID_Player==i]
+                }
 
-plot(TilesRevealed ~ Guess_Number, data = agg[agg$Competition==1 & agg$Effort==0,], main = "yes comp no effort")
-plot(TilesRevealed ~ Guess_Number, data = agg[agg$Competition==1 & agg$Effort==1,], main = "yes comp,yes effort")
+#correct guesses per unit time
+d.reward.agg.acc <- aggregate(cbind(Correct_Guess) ~ Effort + Competition + Sex + totaltime + ID_Player, 
+                                                    data=d.reward.agg, FUN = sum)
 
-cor(agg$Guess_Number[agg$Competition==1], agg$TilesRevealed[agg$Competition==1])
-cor(agg$Guess_Number[agg$Competition==0], agg$TilesRevealed[agg$Competition==0])
+#total number of problems that each player attempted
+d.reward.agg.acc$totalgrids <- NA
+for(i in unique(d.reward.agg$ID_Player)){
+  ROWS <- nrow(d.reward.agg[d.reward.agg$ID_Player == i,])
+  d.reward.agg.acc$totalgrids[d.reward.agg.acc$ID_Player==i] <- ROWS
+}
 
-#ggplot of just the points
-ggplot(data=agg, aes(x=Guess_Number, y=TilesRevealed, color=as.factor(Competition), 
-                     group=as.factor(Competition))) +
-  geom_point(colour=rangi2, alpha = 0.4)+ 
-  theme_classic(base_size=14) +
-  ylim(0, 15) + 
-  scale_colour_brewer(name="Competition",
-                      labels = c("No Competition", "Competition"),
-                      palette = "Dark2") 
-# 
+#proportion of true results for each player
+d.reward.agg.acc$trueresult_prop <- d.reward.agg.acc$Correct_Guess / d.reward.agg.acc$totalgrids
+
+#######
+###proportion of true results as a function of competition and effort
+#######
+
+m_trueresult_prop <- map2stan(
+  alist(
+    trueresult_prop ~ dnorm(mu, sigma), 
+    mu <- a + bC*Competition + bE*Effort + 
+      bCE*Competition*Effort, 
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10), 
+    a ~ dgamma(1, 0.05), 
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.reward.agg.acc, iter=5000, chains = 1, cores = 1, warmup=500)
+
+plot(precis(m_trueresult_prop))
+
+#######
+###Reward per unit time as a function of competition and effort
+#######
+
+#total time for each player, reward in one data frame
+d.reward.agg.final <- aggregate(cbind(Reward) ~ Effort + Competition + Sex +
+                                  totaltime + ID_Player, 
+                                data=d.reward.agg, FUN = mean)
+
+#reward per unit time, for aggregated data
+d.reward.agg.final$totalgrids <-  d.reward.agg.acc$totalgrids
+d.reward.agg.final$totaltime <- d.reward.agg.final$totaltime + d.reward.agg.final$totalgrids * 5
+d.reward.agg.final$reward_per_time <- d.reward.agg.final$Reward / d.reward.agg.final$totaltime
+
+#model
+m_reward_per_time <- map2stan(
+  alist(
+    reward_per_time ~ dnorm(mu, sigma), 
+    mu <- a + bC*Competition + bE*Effort + bCE*Competition*Effort, 
+    bC ~ dnorm(0, 1), 
+    bE ~ dnorm(0, 1), 
+    bCE ~ dnorm(0, 1), 
+    a ~ dgamma(1, 0.05), 
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.reward.agg.final, iter=5000, chains = 1, cores = 1, warmup=500)
+
+precis(m_reward_per_time, digits = 5)
+
+#Plot Predictions
+d.pred.a <- list(
+  Competition = c(0, 0, 1, 1), 
+  Effort = c(0, 1, 0, 1), 
+  n_major_s = c(0, 0, 0, 0),
+  ID_Player = rep(2, 4) #placeholder
+)
+
+#replace varying intercept samples with zeros
+a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.reward.agg.final$ID_Player)))
+
+m.reward.link <- link(m_reward_per_time, n=2000, data=d.pred.a, 
+                        replace = list(a_player=a_player_zeros))
+
+#summarize and plot with plot function
+pred.p.mean.reward <- apply( m.reward.link , 2 , mean )
+pred.p.PI.reward <- apply( m.reward.link , 2 , HPDI , prob=0.95)
+
+###plot###
+d.gg <- data.frame(mean = pred.p.mean.reward, low_ci = pred.p.PI.reward[1,], high_ci = pred.p.PI.reward[2,], 
+                   competition = as.factor(c(0, 0, 1, 1)), effort = as.factor(c(0, 1, 0, 1)))
+
+d.reward.agg.final$Effort <- as.factor(d.reward.agg.final$Effort)
+
+d.gg$Competition <- d.gg$competition
+d.gg$Effort <- d.gg$effort
+d.gg$reward_per_time <- d.gg$mean
+
+ggplot(d.reward.agg.final, aes(x = as.factor(Competition), y = reward_per_time, 
+                               color = Effort)) +
+         geom_jitter(width = 0.25) + facet_grid(. ~ Effort) + 
+   ylab("Payoff per Second") +
+  scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes")) +
+  theme_bw(base_size = 14) + theme(strip.text.x = element_blank()) + 
+  scale_color_brewer(name="Effort", labels = c("No", "Yes"), palette = "Set1") +
+  geom_pointrange(data = d.gg, aes(ymin=low_ci, ymax=high_ci), lwd=0.8, 
+                  colour = "black", alpha = 0.9)
+
