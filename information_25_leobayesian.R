@@ -128,7 +128,7 @@ for(i in 1:replicats){
 }
 
 #how confident do you want the opponent (no-comp condition) to be before guessing (e.g. 80% = 0.2)
-threshold_l <- 0.05
+threshold_l <- 0.35
 threshold_u <- 1 - threshold_l
 
 ## Simulations
@@ -279,8 +279,8 @@ df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidenc
 
 plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", lwd = 2,
      col="#cb181d", ylab = "Mean Payoff", xlab = "Player's Confidence Level When Guessing", 
-     main = "95% Confident Opponent. 3 Effects.")
-abline(v = 0.95, col="black", lwd=2, lty=2)
+     main = "65% Confident Opponent. 3 Effects.")
+abline(v = 0.65, col="black", lwd=2, lty=2)
 
 
 ###############
