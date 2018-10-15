@@ -114,20 +114,21 @@ replicats <- 1e4 # Number of replicates
 tiles_revealed <- rep(0, replicats)
 correct <- rep(NA, replicats)
 
-## Generation the underlying state of the grid 
-N_Yellow <- 10 # Number of Yellow tiles (has to be lower than NumberOfTiles/2)
-N_Blue <- NumberOfTiles - N_Yellow # Number of Blue tiles
-Tiles <- c(rep(0, N_Yellow), rep(1, N_Blue))
-
 #generate matrix to hold all tile sequences
 tile_seq_matrix <- matrix(ncol = 25, nrow = 1e4)
+N_Yellow <- sample(c(8, 10, 12), 1e4, replace=TRUE) # Number of Yellow tiles (has to be lower than NumberOfTiles/2)
+N_Blue <- NumberOfTiles - N_Yellow # Number of Blue tiles
+
+#sampling sequences, with all possible effects
 for(i in 1:replicats){
+
+  Tiles <- c(rep(0, N_Yellow[i]), rep(1, N_Blue[i]))
   Observation <- sample(Tiles, NumberOfTiles, replace = F) # Shuffle the grid to generate a sequence of observation
   tile_seq_matrix[i,] <- Observation
 }
 
 #how confident do you want the opponent (no-comp condition) to be before guessing (e.g. 80% = 0.2)
-threshold_l <- 0.25
+threshold_l <- 0.05
 threshold_u <- 1 - threshold_l
 
 ## Simulations
@@ -194,7 +195,7 @@ a + geom_histogram(fill = "#984ea3", alpha = 0.8, bins = 25) + guides(fill=FALSE
 
 #make sure this is the same object as above
 tile_seq_matrix <- tile_seq_matrix
-confidence_levels <- seq(0.6, 1, by = 0.025)
+confidence_levels <- seq(0.6, 1, by = 0.01)
 
 ##matrixes to store player tiles and whether or not they were correct
 matrix_playertiles <- matrix(ncol = length(confidence_levels), nrow = 1e4)
@@ -273,12 +274,19 @@ for(z in 1:length(confidence_levels)){
 }
 
 df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidence), 
-                                      confidence = confidence_levels)
+                                      confidence = confidence_levels, 
+                                      mean_tiles = colMeans(matrix_playertiles))
 
 plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", lwd = 2,
-     col="#cb181d", ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
-     main = "Mean Payoff against 75% Confident Opponent")
-abline(v = 0.75, col="black", lwd=2, lty=2)
+     col="#cb181d", ylab = "Mean Payoff", xlab = "Player's Confidence Level When Guessing", 
+     main = "95% Confident Opponent. 3 Effects.")
+abline(v = 0.95, col="black", lwd=2, lty=2)
+
+
+###############
+plot(df_final_player_payoffs$mean_tiles ~ df_final_player_payoffs$confidence, type = "b", lwd = 2,
+     col="#cb181d", ylab = "Mean Tiles", xlab = "Player's Confidence Level When Guessing", 
+     main = "Mean Tiles Revealed. 3 Effects.")
 
 
 
