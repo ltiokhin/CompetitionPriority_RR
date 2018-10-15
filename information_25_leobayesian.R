@@ -105,7 +105,8 @@ plot(a)
 }
 
 #####Histogram of guesses as a function of belief#####
-####medium effect size#####
+####medium effect size##### (change this to small and large and see what happens)
+####shuffle the tile_seq_matrix and mix in a bunch of effects
 
 #ptm <- proc.time()
 NumberOfTiles <- 25
@@ -126,7 +127,7 @@ for(i in 1:replicats){
 }
 
 #how confident do you want the opponent (no-comp condition) to be before guessing (e.g. 80% = 0.2)
-threshold_l <- 0.15
+threshold_l <- 0.25
 threshold_u <- 1 - threshold_l
 
 ## Simulations
@@ -274,35 +275,39 @@ for(z in 1:length(confidence_levels)){
 df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidence), 
                                       confidence = confidence_levels)
 
-plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", 
-     col=rangi2, ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
-     main = "Payoff against 85% Confident Opponent")
+plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", lwd = 2,
+     col="#cb181d", ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
+     main = "Mean Payoff against 75% Confident Opponent")
+abline(v = 0.75, col="black", lwd=2, lty=2)
 
-####redoing the same analysis, but assuming that you get scooped if you guess at the exact same time
-###as opponent
 
-df_payoff_confidence <- matrix(ncol=length(confidence_levels), 
-                               nrow = 1e4)
-
-for(z in 1:length(confidence_levels)){
-  for(i in 1:nrow(df_payoff_confidence)){
-    
-    #if opponent scoops you by guessing earlier or at the same time
-    if(df_opponent$tiles_opp[i] <= matrix_playertiles[i,z] & df_opponent$correct[i] == 1){
-      df_payoff_confidence[i,z] <- 0
-    } else if(matrix_playercorrect[i,z] == 1){
-      df_payoff_confidence[i,z] <- 1 #else if opponent doesn't scoop you and you get it right, you get a point
-    } else {
-      df_payoff_confidence[i,z] <- -1 #else if you don't get it right, it means you got it wrong
-    }
-  }
-}
-
-df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidence), 
-                                      confidence = confidence_levels)
-
-plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", 
-     col=rangi2, ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
-     main = "Payoff against 85% Confident Opponent (Easy to be Scooped)")
 
 save.image(file = "bayesiancompetitors_payoffs_killinit.RData")
+
+
+####To redo the same analysis, but assuming that you get scooped if you guess at the exact same time
+###as opponent, run code below
+# 
+# df_payoff_confidence <- matrix(ncol=length(confidence_levels), 
+#                                nrow = 1e4)
+# 
+# for(z in 1:length(confidence_levels)){
+#   for(i in 1:nrow(df_payoff_confidence)){
+#     
+#     #if opponent scoops you by guessing earlier or at the same time
+#     if(df_opponent$tiles_opp[i] <= matrix_playertiles[i,z] & df_opponent$correct[i] == 1){
+#       df_payoff_confidence[i,z] <- 0
+#     } else if(matrix_playercorrect[i,z] == 1){
+#       df_payoff_confidence[i,z] <- 1 #else if opponent doesn't scoop you and you get it right, you get a point
+#     } else {
+#       df_payoff_confidence[i,z] <- -1 #else if you don't get it right, it means you got it wrong
+#     }
+#   }
+# }
+# 
+# df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidence), 
+#                                       confidence = confidence_levels)
+# 
+# plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", lwd = 2,
+#      col="#cb181d", ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
+#      main = "Payoff against 85% Confident Opponent (Easy to be Scooped)")
