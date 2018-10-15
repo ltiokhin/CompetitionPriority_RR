@@ -11,6 +11,7 @@ library(dplyr)
 library(sjPlot)
 library(stringr)
 library(RColorBrewer)
+library(reshape2)
 
 #############
 ###Data from RR study (no excluding individual observations)
@@ -103,21 +104,29 @@ plot(a)
 
 }
 
-#####Histogram of guesses as a function of belief
+#####Histogram of guesses as a function of belief#####
+####medium effect size#####
 
 #ptm <- proc.time()
 NumberOfTiles <- 25
-
 replicats <- 1e4 # Number of replicates
 tiles_revealed <- rep(0, replicats)
+correct <- rep(NA, replicats)
 
 ## Generation the underlying state of the grid 
-N_Yellow <- 12 # Number of Yellow tiles (has to be lower than NumberOfTiles/2)
+N_Yellow <- 10 # Number of Yellow tiles (has to be lower than NumberOfTiles/2)
 N_Blue <- NumberOfTiles - N_Yellow # Number of Blue tiles
 Tiles <- c(rep(0, N_Yellow), rep(1, N_Blue))
 
-#how confident do you want to be before guessing (e.g. 80% = 0.2)
-threshold_l <- 0.25
+#generate matrix to hold all tile sequences
+tile_seq_matrix <- matrix(ncol = 25, nrow = 1e4)
+for(i in 1:replicats){
+  Observation <- sample(Tiles, NumberOfTiles, replace = F) # Shuffle the grid to generate a sequence of observation
+  tile_seq_matrix[i,] <- Observation
+}
+
+#how confident do you want the opponent (no-comp condition) to be before guessing (e.g. 80% = 0.2)
+threshold_l <- 0.15
 threshold_u <- 1 - threshold_l
 
 ## Simulations
@@ -126,14 +135,13 @@ theta<-seq(0,1,0.001) #create theta range from 0 to 1
 # Start                    
 for (j in 1 :replicats){
   
-  Observation <- sample(Tiles, NumberOfTiles, replace = F) # Shuffle the grid to generate a sequence of observation
   aposterior<-1 #Set the alpha for the Beta distribution for the prior
   bposterior<-1 #Set the beta for the Beta distribution for the prior
   LL <- 0
   
-  for(i in 1:length(Observation)){
+  for(i in 1:length(Tiles)){
     n <- i #total trials
-    if(Observation[i] == 1){
+    if(tile_seq_matrix[j,i] == 1){
       aposterior <- aposterior + 1
     } else{
       bposterior <- bposterior + 1
@@ -143,32 +151,158 @@ for (j in 1 :replicats){
     UL <- qbeta(threshold_u ,aposterior, bposterior) #calculate upper limit credible interval
     
     #if there is at least an XX% probability that there are more yellow than blue, then guess at that number of tiles
-    if(LL > 0.5 | UL < 0.5 | aposterior == 14){
+    if(LL > 0.5) {
       tiles_revealed[j] <- n
+      correct[j] <- 1
       break
-    } }
-  
-} 
+      
+    } else if(UL < 0.5){
+      tiles_revealed[j] <- n
+      correct[j] <- 0
+      break
+      
+    } else if(aposterior == 14){
+      tiles_revealed[j] <- n
+      correct[j] <- 1
+      break
+  }
+  } } 
 
-tilesrevealed.df <- as.data.frame(tiles_revealed)
-a <- ggplot(tilesrevealed.df, aes(x = tiles_revealed))
+#opponent guesses and whether they were correct in a data frame
+df_opponent <- data.frame(tiles_opp = tiles_revealed, 
+                          correct = correct, 
+                          esize = N_Yellow)
+
+#plot tiles revealed by a bayesian opponent (player in the no-competition condition)
+a <- ggplot(df_opponent, aes(x = tiles_opp))
 a + geom_histogram(fill = "#984ea3", alpha = 0.8, bins = 25) + guides(fill=FALSE) +
   scale_x_continuous(name = "Tiles Revealed", breaks = seq(0, 25, by = 5), limits=c(-1, 26)) +
   ylab("Frequency") + 
-  ggtitle(paste("Small Effect. Guessing with 75% Confidence. Mean = ", 
-                round(mean(tilesrevealed.df$tiles_revealed), 2))) + 
+  ggtitle(paste("Medium Effect. Guessing with 85% Confidence. Mean = ", 
+                round(mean(df_opponent$tiles_opp), 2))) + 
   theme_bw(base_size = 14) +
   theme(plot.title = element_text(hjust = 0.5), 
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank()) +
-  geom_vline(data=tilesrevealed.df, aes(xintercept=round(mean(tilesrevealed.df$tiles_revealed)), 2),
+  geom_vline(data=df_opponent, aes(xintercept=round(mean(df_opponent$tiles_opp)), 2),
              linetype="dashed", size=1, colour="#e41a1c")
 
+#############
+####player, revealing tiles in the same way. varying the level of confidence
+############ 
 
+#make sure this is the same object as above
+tile_seq_matrix <- tile_seq_matrix
+confidence_levels <- seq(0.6, 1, by = 0.025)
 
+##matrixes to store player tiles and whether or not they were correct
+matrix_playertiles <- matrix(ncol = length(confidence_levels), nrow = 1e4)
+matrix_playercorrect <- matrix(ncol = length(confidence_levels), nrow = 1e4)
 
+for(z in 1:length(confidence_levels)){
 
+#how confident do you want to be before guessing (e.g. 80% = 0.2)
+threshold_u <- confidence_levels[z]
+threshold_l <- 1 - threshold_u
 
+## Simulations
+theta<-seq(0,1,0.001) #create theta range from 0 to 1
 
+# Start                    
+for (j in 1 :replicats){
+  
+  aposterior<-1 #Set the alpha for the Beta distribution for the prior
+  bposterior<-1 #Set the beta for the Beta distribution for the prior
+  LL <- 0
+  
+  for(i in 1:length(Tiles)){
+    n <- i #total trials
+    if(tile_seq_matrix[j,i] == 1){
+      aposterior <- aposterior + 1
+    } else{
+      bposterior <- bposterior + 1
+    } 
+    posterior <- dbeta(theta, aposterior, bposterior) #determine posterior distribution
+    LL <- qbeta(threshold_l, aposterior, bposterior) #calculate lower limit credible interval
+    UL <- qbeta(threshold_u ,aposterior, bposterior) #calculate upper limit credible interval
+    
+    #if there is at least an XX% probability that there are more yellow than blue, then guess at that number of tiles
+    if(LL > 0.5) {
+      tiles_revealed[j] <- n
+      correct[j] <- 1
+      break
+      
+    } else if(UL < 0.5){
+      tiles_revealed[j] <- n
+      correct[j] <- 0
+      break
+      
+    } else if(aposterior == 14){
+      tiles_revealed[j] <- n
+      correct[j] <- 1
+      break
+    }
+  } }
 
+matrix_playertiles[,z] <- tiles_revealed
+matrix_playercorrect[,z] <- correct
+}
 
+#######
+######calculate payoffs to the player, when playing against the opponent from df_opponent#####
+#########
+
+#data frame to store results
+df_payoff_confidence <- matrix(ncol=length(confidence_levels), 
+                               nrow = 1e4)
+
+#currently this is correct, but assumes that the player only gets scooped if they guess after opponent
+for(z in 1:length(confidence_levels)){
+  for(i in 1:nrow(df_payoff_confidence)){
+    
+    #if opponent scoops you by guessing earlier
+    if(df_opponent$tiles_opp[i] < matrix_playertiles[i,z] & df_opponent$correct[i] == 1){
+      df_payoff_confidence[i,z] <- 0
+    } else if(matrix_playercorrect[i,z] == 1){
+      df_payoff_confidence[i,z] <- 1 #else if opponent doesn't scoop you and you get it right, you get a point
+    } else {
+      df_payoff_confidence[i,z] <- -1 #else if you don't get it right, it means you got it wrong
+    }
+  }
+}
+
+df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidence), 
+                                      confidence = confidence_levels)
+
+plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", 
+     col=rangi2, ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
+     main = "Payoff against 85% Confident Opponent")
+
+####redoing the same analysis, but assuming that you get scooped if you guess at the exact same time
+###as opponent
+
+df_payoff_confidence <- matrix(ncol=length(confidence_levels), 
+                               nrow = 1e4)
+
+for(z in 1:length(confidence_levels)){
+  for(i in 1:nrow(df_payoff_confidence)){
+    
+    #if opponent scoops you by guessing earlier or at the same time
+    if(df_opponent$tiles_opp[i] <= matrix_playertiles[i,z] & df_opponent$correct[i] == 1){
+      df_payoff_confidence[i,z] <- 0
+    } else if(matrix_playercorrect[i,z] == 1){
+      df_payoff_confidence[i,z] <- 1 #else if opponent doesn't scoop you and you get it right, you get a point
+    } else {
+      df_payoff_confidence[i,z] <- -1 #else if you don't get it right, it means you got it wrong
+    }
+  }
+}
+
+df_final_player_payoffs <- data.frame(mean_payoff = colMeans(df_payoff_confidence), 
+                                      confidence = confidence_levels)
+
+plot(df_final_player_payoffs$mean_payoff ~ df_final_player_payoffs$confidence, type = "b", 
+     col=rangi2, ylab = "Payoff", xlab = "Player's Confidence Level When Guessing", 
+     main = "Payoff against 85% Confident Opponent (Easy to be Scooped)")
+
+save.image(file = "bayesiancompetitors_payoffs_killinit.RData")
