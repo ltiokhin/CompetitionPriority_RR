@@ -196,6 +196,8 @@ a + geom_histogram(fill = "#984ea3", alpha = 0.8, bins = 25) + guides(fill=FALSE
 #make sure this is the same object as above
 tile_seq_matrix <- tile_seq_matrix
 confidence_levels <- seq(0.6, 1, by = 0.01)
+tiles_revealed <- rep(0, replicats)
+correct <- rep(NA, replicats)
 
 ##matrixes to store player tiles and whether or not they were correct
 matrix_playertiles <- matrix(ncol = length(confidence_levels), nrow = 1e4)
@@ -288,9 +290,100 @@ plot(df_final_player_payoffs$mean_tiles ~ df_final_player_payoffs$confidence, ty
      col="#cb181d", ylab = "Mean Tiles", xlab = "Player's Confidence Level When Guessing", 
      main = "Mean Tiles Revealed. 3 Effects.")
 
+#############
+###Individually optimal number of tiles to reveal in the game, disocunting by number of seconds
+############ 
 
+rm(list=ls())  
 
-save.image(file = "bayesiancompetitors_payoffs_killinit.RData")
+#ptm <- proc.time()
+NumberOfTiles <- 25
+replicats <- 1e3 # Number of replicates
+N_Yellow <- sample(c(8, 10, 12), 1e4, replace=TRUE) # Number of Yellow tiles (has to be lower than NumberOfTiles/2)
+N_Blue <- NumberOfTiles - N_Yellow # Number of Blue tiles
+
+#confidence levels
+confidence_levels <- seq(0.6, 1, by = 0.01)
+
+#keep track of score and runs
+runs <- 1000
+matrix_playerscore <- matrix(ncol = length(confidence_levels), nrow = runs)
+
+for(z in 1:length(confidence_levels)){
+  
+  #how confident do you want to be before guessing (e.g. 80% = 0.2)
+  threshold_u <- confidence_levels[z]
+  threshold_l <- 1 - threshold_u
+  theta<-seq(0,1,0.001) #create theta range from 0 to 1
+  
+  #start an individual run
+  for(run in 1:runs){
+    
+    #reset score and time
+    time_remaining <- 1200
+    score <- 0
+    
+    #generate matrix to hold all tile sequences
+    tile_seq_matrix <- matrix(ncol = 25, nrow = 1e3)
+    
+  #sampling sequences, with all possible effects, to start one individual replicate
+  for(i in 1:replicats){
+    
+    Tiles <- c(rep(0, N_Yellow[i]), rep(1, N_Blue[i]))
+    Observation <- sample(Tiles, NumberOfTiles, replace = F) # Shuffle the grid to generate a sequence of observation
+    tile_seq_matrix[i,] <- Observation
+  }
+  
+  while(time_remaining > 0){
+    
+    aposterior<-1 #Set the alpha for the Beta distribution for the prior
+    bposterior<-1 #Set the beta for the Beta distribution for the prior
+    
+    for(i in 1:length(Tiles)){
+      
+      n <- i #total trials
+      if(tile_seq_matrix[1,i] == 1){
+        aposterior <- aposterior + 1
+      } else{
+        bposterior <- bposterior + 1
+      } 
+      
+      posterior <- dbeta(theta, aposterior, bposterior) #determine posterior distribution
+      LL <- qbeta(threshold_l, aposterior, bposterior) #calculate lower limit credible interval
+      UL <- qbeta(threshold_u ,aposterior, bposterior) #calculate upper limit credible interval
+      
+      #if there is at least an XX% probability that there are more yellow than blue, then guess at that number of tiles
+      if(LL > 0.5) {
+        time_remaining <- time_remaining - (n+5) # 5 seconds for delay between grids
+        score <- score + 1
+        break
+        
+      } else if(UL < 0.5){
+        time_remaining <- time_remaining - (n+5)
+        score <- score - 1
+        break
+        
+      } else if(aposterior == 14){
+        time_remaining <- time_remaining - (n+5)
+        score <- score + 1
+        break
+      }
+    }
+    #remove first row of tile sequence matrix to prevent redundant tiles
+    tile_seq_matrix <- tile_seq_matrix[-1,]
+    
+  } # end while loop
+    
+    matrix_playerscore[run,z] <- score
+    
+  } #end of run 
+    } # end loop for different confidence levels
+  
+df.indvpay <- data.frame(Reward = colSums(matrix_playerscore) / runs, 
+                         Confidence = confidence_levels)
+
+plot(df.indvpay$Reward ~ df.indvpay$Confidence, type = "b", main = "3 Effects. 1000 Repeats.", 
+ lwd = 2, col="#cb181d", ylab = "Mean Payoff", xlab = "Player's Confidence Level When Guessing")
 
 
 ####To redo the same analysis, but assuming that you get scooped if you guess at the exact same time
