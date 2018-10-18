@@ -13,8 +13,8 @@ library(RColorBrewer)
 
 ###Load Data###
 
-#load("PilotData1.RData")
-#load("PilotData2_MathProbs.RData")
+#load("XXXXX")
+#load("XXXXX")
 sequences <- read.table("Sequences1.txt", header=FALSE) #the sequence of blue and yellow tiles for each grid
 
 ###Cleaning and Data Prep###
@@ -836,31 +836,6 @@ plot(precis(m_math_any_sex_inter, prob=0.95),
      xlab = "Estimate", 
      col.ci = rangi2)
 
-########
-###Time to reveal a single tile (need to add elapsedtime_tile to dataset)
-######
-d.timetile.agg <- aggregate(cbind(ElapsedTime_Tile) ~ Effort + Competition + Tile_Number +
-                              Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.complete, FUN = mean)
-
-d.timetile.agg$ID_Player <- coerce_index(d.timetile.agg$ID_Player)
-d.timetile.agg$Sex <- as.integer(d.timetile.agg$Sex)
-
-m_tile_time <- map2stan(
-  alist(
-    ElapsedTime_Tile ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + 
-      bNs*n_major.s,
-    bC ~ dnorm(0, 10), 
-    bE ~ dnorm(0, 10), 
-    bCE ~ dnorm(0, 10), 
-    bNs ~ dnorm(0, 10),
-    a ~ dgamma(1, 0.05), 
-    a_player[ID_Player] ~ dnorm(0, sigma_player),
-    sigma_player ~ dgamma(1, 0.05),
-    sigma ~ dgamma(2, 0.5)
-  ), data=d.timetile.agg, iter=5000, chains = 3, cores = 3, warmup=500)
-
-
 ###########
 ###Reward per unit time, without outlier removal###
 ###########
@@ -976,4 +951,80 @@ ggplot(d.reward.agg.final, aes(x = as.factor(Competition), y = reward_per_time,
   scale_color_brewer(name="Effort", labels = c("No", "Yes"), palette = "Set1") +
   geom_pointrange(data = d.gg, aes(ymin=low_ci, ymax=high_ci), lwd=0.8, 
                   colour = "black", alpha = 0.9)
+
+##################
+###Time to reveal 1 tile
+#################
+
+#Load data for quality checks
+#load("XXXXX")
+
+#remove missing observations
+d.quality.effortcheck <- d.quality[complete.cases(d.quality),]
+
+#exclude participants who indicated technical difficulties
+d.quality.effortcheck <- d.quality.effortcheck[d.quality.effortcheck$ID_Player != 26,]
+d.quality.effortcheck <- d.quality.effortcheck[d.quality.effortcheck$ID_Player != 61,]
+
+#remove rows with time-to-remove 1 tile values that are more than 5 standard deviations away from the mean
+agg <- aggregate(ElapsedTime_Tile ~ Guess_Number + ID_Player + Effort + Competition, data=d.quality.effortcheck, FUN = mean)
+sd5.times <- mean(agg$ElapsedTime_Tile) + (5 * sd(agg$ElapsedTime_Tile))
+nrow(agg[agg$ElapsedTime_Tile > sd5.times,]) #101 observations excluded
+
+#excluding observations 
+d.quality.effortcheck <- d.quality.effortcheck[d.quality.effortcheck$ElapsedTime_Tile < sd5.times,]
+
+######
+###Effect of Effort Treatment on Time to Click 1 Tile
+######
+d.quality.effortcheck$ID_Player <- coerce_index(d.quality.effortcheck$ID_Player)
+
+m.quality.original.nooutliers <- map2stan(
+  alist(
+    ElapsedTime_Tile ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10), 
+    a ~ dgamma(1.5, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.quality.effortcheck, iter=15000, chains=4, cores=4, warmup=500)
+
+m.quality.original.nointeraction <- map2stan(
+  alist(
+    ElapsedTime_Tile ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    a ~ dgamma(1.5, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.quality.effortcheck, iter=15000, chains=4, cores=4, warmup=500)
+
+m.quality.original.nocomp <- map2stan(
+  alist(
+    ElapsedTime_Tile ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bE*Effort,
+    bE ~ dnorm(0, 10), 
+    a ~ dgamma(1.5, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.quality.effortcheck, iter=15000, chains=4, cores=4, warmup=500)
+
+quality_df <- compare(m.quality.original.nocomp, m.quality.original.nointeraction, m.quality.original.nooutliers)
+quality_df <- round(quality_df@output, 2)
+quality_df <- quality_df[,1:4]
+
+row.names(quality_df) <- c("Time_Tile_E",  
+                         "Time_Tile_E_C_EC", "Time_Tile_E_C")
+
+quality_df %>% kable(caption = "TIME TO REVEAL 1 TILE")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
+
 
