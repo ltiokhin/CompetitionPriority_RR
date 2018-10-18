@@ -72,7 +72,7 @@ d.conf_1_2.b$n_major.s <- (d.conf_1_2.b$n_major - mean(d.conf_1_2.b$n_major)) / 
 d.conf_3_math.b$n_major.s <- (d.conf_3_math.b$n_major - mean(d.conf_3_math.b$n_major)) / sd(d.conf_3_math.b$n_major)
 
 #Aggregate data for each participant for confirmatory analyses 1 and 2
-d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition +
                           Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.b, FUN = mean)
 
 d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
@@ -241,7 +241,7 @@ d.conf_3_math.complete_no0$n_major.s <- (d.conf_3_math.complete_no0$n_major - me
                                       / sd(d.conf_3_math.complete_no0$n_major)
 
 #Aggregate data for each participant for confirmatory analyses 1 and 2
-d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition +
                           Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.complete_no0, FUN = mean)
 
 d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
@@ -379,12 +379,11 @@ d.conf_3_math.complete$n_major.s <- (d.conf_3_math.complete$n_major - mean(d.con
                                           sd(d.conf_3_math.complete$n_major)
 
 #Aggregate data for each participant for confirmatory analyses 1 and 2
-d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition + Faster +
+d.conf.agg <- aggregate(cbind(TilesRevealed, Correct_Guess) ~ Effort + Competition +
                           Sex + Guess_Number + n_major.s + ID_Player, data=d.conf_1_2.complete, FUN = mean)
 
 d.conf.agg$ID_Player <- coerce_index(d.conf.agg$ID_Player)
 d.conf.agg$Sex <- as.integer(d.conf.agg$Sex)
-
 d.conf.agg$Sex[d.conf.agg$Sex==1] <- 0 #female
 d.conf.agg$Sex[d.conf.agg$Sex==2] <- 1 #male
 
@@ -418,8 +417,6 @@ m.tiles.noE_interaction <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05),
     sigma ~ dgamma(2, 0.5)
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
-
-precis(m.tiles.nointer.guessnum)
 
 ###Tiles: original confirmatory analyses 
 
@@ -722,7 +719,6 @@ coeftab_plot(multi_models_accuracy,
              prob = 0.95, col.ci = rangi2, main = "Accuracy: Log Odds of Correct Guess")
 
 #Arithmetic problems
-
 d.conf_3_math.complete$ID_Player <- coerce_index(d.conf_3_math.complete$ID_Player)
 d.conf_3_math.complete$Sex <- as.integer(d.conf_3_math.complete$Sex)
 
@@ -731,8 +727,6 @@ d.math.agg <- aggregate(cbind(ElapsedTime_MathSolved, ElapsedTime_Math) ~ Effort
                         data=d.conf_3_math.complete, FUN = mean)
 
 d.math.agg$Guess_Number.s <- (d.math.agg$Guess_Number - mean(d.math.agg$Guess_Number)) / sd(d.math.agg$Guess_Number)
-
-
 d.math.agg$Sex[d.math.agg$Sex==1] <- 0
 d.math.agg$Sex[d.math.agg$Sex==2] <- 1
 
@@ -814,7 +808,6 @@ coeftab_plot(multi_models_effort,
              prob = 0.95, col.ci = rangi2, main = "Time (seconds) to Accurately Solve One Arithmetic Problem")
 
 #time to produce any answer (i.e correct or incorrect)
-
 m_math_any_sex_inter <- map2stan(
   alist(
     ElapsedTime_Math ~ dnorm(mu, sigma), 
@@ -839,6 +832,7 @@ plot(precis(m_math_any_sex_inter, prob=0.95),
 ###########
 ###Reward per unit time, without outlier removal###
 ###########
+
 df.reward <- d.conf_1_2.b[complete.cases(d.conf_1_2.b),]
 
 d.reward.agg <- aggregate(cbind(Reward) ~ Effort + Competition + Sex +
@@ -890,67 +884,118 @@ plot(precis(m_trueresult_prop))
 ###Reward per unit time as a function of competition and effort
 #######
 
-#total time for each player, reward in one data frame
-d.reward.agg.final <- aggregate(cbind(Reward) ~ Effort + Competition + Sex +
-                                  totaltime + ID_Player, 
-                                data=d.reward.agg, FUN = mean)
+###Store original data in separate objects###
+d.reward <- d.conf_1_2
 
-#reward per unit time, for aggregated data
-d.reward.agg.final$totalgrids <-  d.reward.agg.acc$totalgrids
-d.reward.agg.final$totaltime <- d.reward.agg.final$totaltime + d.reward.agg.final$totalgrids * 5
-d.reward.agg.final$reward_per_time <- d.reward.agg.final$Reward / d.reward.agg.final$totaltime
+#Exclude participants who indicated technical difficulties
+d.reward <- d.reward[d.reward$ID_Player != 26,]
+d.reward <- d.reward[d.reward$ID_Player != 61,]
+
+#Exclude participants who did not complete study and rows with NA (i.e. grids that were never finished)
+d.reward <- d.reward[complete.cases(d.reward),]
+
+#aggregate data for time elapsed per guess, by first removing duplicate times, then summing up total times per player
+d.reward.agg <- aggregate(ElapsedTime_Guess ~ Effort + Competition + Sex + Guess_Number + ID_Player, data = d.reward, FUN = mean)
+d.reward.agg <- aggregate(ElapsedTime_Guess ~ Effort + Competition + Sex + ID_Player, data = d.reward.agg, FUN = sum)
+
+#find total number of guesses for each participant and add to d.rewrd.agg
+d.reward.agg$Reward <- NA
+for(i in unique(d.reward.agg$ID_Player)){
+  payout <- d.reward$Reward[d.reward$ID_Player == i]
+  d.reward.agg$Reward[d.reward.agg$ID_Player == i] <- unique(payout)
+}
+
+#find total number of grids for each participant and add to d.rewrd.agg
+d.reward.agg$totalgrids <- NA
+for(i in unique(d.reward.agg$ID_Player)){
+  grids <- d.reward$Guess_Number[d.reward$ID_Player == i]
+  d.reward.agg$totalgrids[d.reward.agg$ID_Player == i] <- max(grids)
+}
+
+#calculate reward per unit time, for aggregated data (add 5 seconds for each grid complated)
+d.reward.agg$totaltime <- d.reward.agg$ElapsedTime_Guess + d.reward.agg$totalgrids * 5
+#calculate reward per unit time
+d.reward.agg$reward_per_time <- d.reward.agg$Reward / d.reward.agg$totaltime
 
 #model
-m_reward_per_time <- map2stan(
+m_reward_per_second <- map2stan(
   alist(
     reward_per_time ~ dnorm(mu, sigma), 
     mu <- a + bC*Competition + bE*Effort + bCE*Competition*Effort, 
-    bC ~ dnorm(0, 1), 
-    bE ~ dnorm(0, 1), 
-    bCE ~ dnorm(0, 1), 
-    a ~ dgamma(1, 0.05), 
-    sigma ~ dgamma(2, 0.5)
-  ), data=d.reward.agg.final, iter=5000, chains = 1, cores = 1, warmup=500)
-
-precis(m_reward_per_time, digits = 5)
+    bC ~ dnorm(0, 0.1), 
+    bE ~ dnorm(0, 0.1), 
+    bCE ~ dnorm(0, 0.1), 
+    sigma ~ dgamma(2, 1), 
+    a ~ dgamma(1, 1)
+  ), data=d.reward.agg, iter=5000, chains = 1, cores = 1, warmup=500)
 
 #Plot Predictions
 d.pred.a <- list(
   Competition = c(0, 0, 1, 1), 
-  Effort = c(0, 1, 0, 1), 
-  n_major_s = c(0, 0, 0, 0),
-  ID_Player = rep(2, 4) #placeholder
-)
+  Effort = c(0, 1, 0, 1))
 
 #replace varying intercept samples with zeros
-a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.reward.agg.final$ID_Player)))
-
-m.reward.link <- link(m_reward_per_time, n=2000, data=d.pred.a, 
+a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.reward.agg$ID_Player)))
+m.reward.link <- link(m_reward_per_second, n=2000, data=d.pred.a, 
                         replace = list(a_player=a_player_zeros))
 
 #summarize and plot with plot function
 pred.p.mean.reward <- apply( m.reward.link , 2 , mean )
 pred.p.PI.reward <- apply( m.reward.link , 2 , HPDI , prob=0.95)
 
-###plot###
 d.gg <- data.frame(mean = pred.p.mean.reward, low_ci = pred.p.PI.reward[1,], high_ci = pred.p.PI.reward[2,], 
                    competition = as.factor(c(0, 0, 1, 1)), effort = as.factor(c(0, 1, 0, 1)))
 
-d.reward.agg.final$Effort <- as.factor(d.reward.agg.final$Effort)
+#plot
+d.reward.agg.plot <- d.reward.agg
+d.reward.agg.plot$Effort <- as.factor(d.reward.agg.plot$Effort)
 
-d.gg$Competition <- d.gg$competition
-d.gg$Effort <- d.gg$effort
-d.gg$reward_per_time <- d.gg$mean
-
-ggplot(d.reward.agg.final, aes(x = as.factor(Competition), y = reward_per_time, 
-                               color = Effort)) +
-         geom_jitter(width = 0.25) + facet_grid(. ~ Effort) + 
+gg.reward <- ggplot(d.reward.agg.plot, aes(x = as.factor(Competition), y = reward_per_time, 
+                                           color = Effort)) +
+   geom_jitter(width = 0.25) + facet_grid(. ~ Effort) + 
    ylab("Payoff per Second") +
   scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes")) +
-  theme_bw(base_size = 14) + theme(strip.text.x = element_blank()) + 
-  scale_color_brewer(name="Effort", labels = c("No", "Yes"), palette = "Set1") +
-  geom_pointrange(data = d.gg, aes(ymin=low_ci, ymax=high_ci), lwd=0.8, 
-                  colour = "black", alpha = 0.9)
+  theme_classic(base_size = 14) + theme(strip.text.x = element_blank()) + 
+  scale_color_brewer(name="Effort", labels = c("No", "Yes"), palette = "Set1")
+
+names(d.gg) <- c("reward_per_time", "low_ci", "high_ci", "Competition", "Effort")
+
+gg.reward + geom_pointrange(data = d.gg, aes(ymin=low_ci, ymax=high_ci), lwd=0.8, 
+                  colour = "black", alpha = 0.9) 
+  
+
+###compare alternative models###
+m_reward_per_second_nointer <- map2stan(
+  alist(
+    reward_per_time ~ dnorm(mu, sigma), 
+    mu <- a + bC*Competition + bE*Effort,  
+    bC ~ dnorm(0, 0.1), 
+    bE ~ dnorm(0, 0.1), 
+    a ~ dgamma(1, 1), 
+    sigma ~ dgamma(2, 1)
+  ), data=d.reward.agg, iter=5000, chains = 1, cores = 1, warmup=500)
+
+m_reward_per_second_noC <- map2stan(
+  alist(
+    reward_per_time ~ dnorm(mu, sigma), 
+    mu <- a + bE*Effort,  
+    bE ~ dnorm(0, 0.1), 
+    a ~ dgamma(1, 1), 
+    sigma ~ dgamma(2, 1)
+  ), data=d.reward.agg, iter=5000, chains = 1, cores = 1, warmup=500)
+
+reward_df <- compare(m_reward_per_second, m_reward_per_second_nointer, m_reward_per_second_noC)
+reward_df <- round(reward_df@output, 2)
+reward_df <- reward_df[,1:4]
+
+row.names(reward_df) <- c("Reward_E",  
+                           "Reward_E_C", "Reward_E_C_EC")
+
+reward_df %>% kable(caption = "REWARD PER SECOND")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
+
 
 ##################
 ###Time to reveal 1 tile
@@ -973,11 +1018,13 @@ nrow(agg[agg$ElapsedTime_Tile > sd5.times,]) #101 observations excluded
 
 #excluding observations 
 d.quality.effortcheck <- d.quality.effortcheck[d.quality.effortcheck$ElapsedTime_Tile < sd5.times,]
+#making index
+d.quality.effortcheck$ID_Player <- coerce_index(d.quality.effortcheck$ID_Player)
+
 
 ######
 ###Effect of Effort Treatment on Time to Click 1 Tile
 ######
-d.quality.effortcheck$ID_Player <- coerce_index(d.quality.effortcheck$ID_Player)
 
 m.quality.original.nooutliers <- map2stan(
   alist(
@@ -991,6 +1038,9 @@ m.quality.original.nooutliers <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05),
     sigma ~ dgamma(2, 0.5)
   ), data=d.quality.effortcheck, iter=15000, chains=4, cores=4, warmup=500)
+
+plot(precis(m.quality.original.nooutliers, prob = 0.95), 
+     main = "Time (seconds) to Reveal 1 Tile")
 
 m.quality.original.nointeraction <- map2stan(
   alist(
@@ -1026,5 +1076,8 @@ quality_df %>% kable(caption = "TIME TO REVEAL 1 TILE")  %>%
   kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
                 full_width = TRUE) %>%
   column_spec(1:5, width = "2cm")
+
+####plot
+
 
 
