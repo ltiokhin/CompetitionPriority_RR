@@ -230,7 +230,9 @@ nrow(d.conf_3_math.complete[d.conf_3_math.complete$ElapsedTime_Math > sd5.times,
 #excluding observations from math dataset
 d.conf_3_math.complete <- d.conf_3_math.complete[d.conf_3_math.complete$ElapsedTime_Math < sd5.times,]
 
+##############
 #exclude participants who revealed 0 tiles
+##############
 d.conf_1_2.complete_no0 <- d.conf_1_2.complete[d.conf_1_2.complete$TilesRevealed > 0,]
 d.conf_3_math.complete_no0 <- d.conf_3_math.complete[d.conf_3_math.complete$TilesRevealed > 0,]
 
@@ -388,7 +390,6 @@ d.conf.agg$Sex[d.conf.agg$Sex==1] <- 0 #female
 d.conf.agg$Sex[d.conf.agg$Sex==2] <- 1 #male
 
 ###Tiles: No effort 
-
 m.tiles.noE <- map2stan(
   alist(
     TilesRevealed ~ dnorm(mu, sigma), 
@@ -570,7 +571,6 @@ compare(m.tiles.orig, m.tiles.guessnum, m.tiles.sex.inter, m.tiles.sex.inter2,
         m.tiles.noE)
 
 ####RUUNNING SEX INTERACTION MODEL - REDO THE MULTIMODELS AND COEFPLOT FOR TILES AND ACCURACY
-
 multi_models <- coeftab( 
                         m.tiles.guess.nmajor.inter, 
                         m.tiles.guess.nmajor.inter2only, 
@@ -587,7 +587,7 @@ coeftab_plot(multi_models, pars=c("bC", "bE", "bNs", "bGs", "bCE", "bES", "bCS",
 coeftab_plot(multi_models, pars=c("bC", "bE", "bCE", "bNs"), 
              prob = 0.95, col.ci = rangi2, main = "Tiles Revealed")
 
-#####Visualize raw data: guess number against tiles revealed. 
+###Visualize raw data: guess number against tiles revealed###
 plot(d.conf.agg$TilesRevealed[d.conf.agg$Competition==0 &
                                  d.conf.agg$Effort==0] ~ 
        d.conf.agg$Guess_Number[d.conf.agg$Competition==0 &
@@ -963,7 +963,6 @@ names(d.gg) <- c("reward_per_time", "low_ci", "high_ci", "Competition", "Effort"
 gg.reward + geom_pointrange(data = d.gg, aes(ymin=low_ci, ymax=high_ci), lwd=0.8, 
                   colour = "black", alpha = 0.9) 
   
-
 ###compare alternative models###
 m_reward_per_second_nointer <- map2stan(
   alist(
@@ -1077,7 +1076,107 @@ quality_df %>% kable(caption = "TIME TO REVEAL 1 TILE")  %>%
                 full_width = TRUE) %>%
   column_spec(1:5, width = "2cm")
 
-####plot
+###########
+#plot tiles revealed as function of competition, effort, and effect size -----------
+############
+
+precis(m.tiles.guess.nmajor.inter, prob = 0.95)
+
+EE <- unique(d.conf.agg$n_major.s)
+median.guess.s <- median(d.conf.agg$Guess_Number.s)
+
+d.pred <- list(
+  Competition = c(rep(0, 6), rep(1, 6)),
+  Effort = rep(c(0, 1), 6),
+  n_major_s = c(rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2), rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2)),
+  Guess_Number_s = rep(median.guess.s, 12),
+  ID_Player = rep(2, 12) #placeholder
+)
+
+#replace varying intercept samples with zeros
+a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.conf.agg$ID_Player)))
+
+m.quality1.link <- link(m.tiles.guess.nmajor.inter, n=2000, data=d.pred, 
+                        replace = list(a_player=a_player_zeros))
+
+#summarize#
+pred.p.mean <- apply(m.quality1.link , 2 , mean)
+pred.p.PI <- apply( m.quality1.link , 2 , HPDI , prob=0.95)
+
+##plot
+d.gg <- data.frame(mean = pred.p.mean, low_ci = pred.p.PI[1,], high_ci = pred.p.PI[2,], 
+                   competition = c(rep(0, 6), rep(1, 6)),
+                   effort = rep(c(0, 1), 6),
+                   n_major_s = c(rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2), rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2)),
+                   Guess_Number_s = rep(median.guess.s, 12)
+                   )
+#plot
+d.gg$competition <- as.factor(d.gg$competition)
+d.gg$competition <- c(rep("No Competition", 6), rep("Competition", 6))
+d.gg$effort <- as.factor(d.gg$effort)
+d.gg$effort <- rep(c("No Effort", "Effort"), 6)
+
+ggplot(data=d.gg, aes(x = as.factor(n_major_s), y = mean, 
+                      colour = as.factor(n_major_s), group=as.factor(n_major_s))) + 
+  ylim(0, 15) + ylab("Tiles Revealed") +
+  facet_grid(cols = vars(fct_rev(effort), fct_rev(competition))) +
+  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), lwd=1) +
+  theme_bw(base_size = 14) +
+  scale_x_discrete(name ="Effect Size", labels=c("Small","Medium","Large", "Small", "Medium", "Large")) +
+  scale_color_brewer(name="Effect Size", palette = "Reds", 
+                     labels = c("Small", "Medium", "Large"))
+
+###########
+#plot accuracy as function of competition, effort, and effect size -----------
+############
+
+precis(m_accuracy_compeff_guess_nmajor_inter, prob = 0.95)
+
+EE <- unique(d.conf.agg$n_major.s)
+median.guess.s <- median(d.conf.agg$Guess_Number.s)
+
+d.pred <- list(
+  Competition = c(rep(0, 6), rep(1, 6)),
+  Effort = rep(c(0, 1), 6),
+  n_major_s = c(rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2), rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2)),
+  Guess_Number_s = rep(median.guess.s, 12),
+  ID_Player = rep(2, 12) #placeholder
+)
+
+#replace varying intercept samples with zeros
+a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.conf.agg$ID_Player)))
+
+m.acc.effect.link <- link(m_accuracy_compeff_guess_nmajor_inter, n=2000, data=d.pred, 
+                        replace = list(a_player=a_player_zeros))
+
+#summarize#
+pred.p.mean <- apply(m.acc.effect.link , 2 , mean)
+pred.p.PI <- apply( m.acc.effect.link , 2 , HPDI , prob=0.95)
+
+##plot
+d.gg <- data.frame(mean = pred.p.mean, low_ci = pred.p.PI[1,], high_ci = pred.p.PI[2,], 
+                   competition = c(rep(0, 6), rep(1, 6)),
+                   effort = rep(c(0, 1), 6),
+                   n_major_s = c(rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2), rep(EE[1], 2), rep(EE[2], 2), rep(EE[3], 2)),
+                   Guess_Number_s = rep(median.guess.s, 12)
+)
+#plot
+d.gg$competition <- as.factor(d.gg$competition)
+d.gg$competition <- c(rep("No Competition", 6), rep("Competition", 6))
+d.gg$effort <- as.factor(d.gg$effort)
+d.gg$effort <- rep(c("No Effort", "Effort"), 6)
+
+
+##plot with ggplot
+ggplot(data=d.gg, aes(x = as.factor(n_major_s), y = mean, 
+                      colour = as.factor(n_major_s), group=as.factor(n_major_s))) + 
+  ylim(0, 1) + ylab("Probability of Correct Guess") +
+  facet_grid(cols = vars(fct_rev(effort), fct_rev(competition))) +
+  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), lwd=1) +
+  theme_bw(base_size = 14) +
+  scale_x_discrete(name ="Effect Size", labels=c("Small","Medium","Large", "Small", "Medium", "Large")) +
+  scale_color_brewer(name="Effect Size", palette = "Reds", 
+                     labels = c("Small", "Medium", "Large"))
 
 
 
