@@ -401,7 +401,6 @@ m.tiles.noE <- map2stan(
 precis(m.tiles.noE, prob = 0.95)
 
 ###Tiles: No effort interaction
-
 m.tiles.noE_interaction <- map2stan(
   alist(
     TilesRevealed ~ dnorm(mu, sigma), 
@@ -416,7 +415,6 @@ m.tiles.noE_interaction <- map2stan(
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
 
 ###Tiles: original confirmatory analyses 
-
 m.tiles.orig <- map2stan(
   alist(
     TilesRevealed ~ dnorm(mu, sigma), 
@@ -432,7 +430,7 @@ m.tiles.orig <- map2stan(
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
 
 #table of alternative model comparisons
-df <- compare(m.tiles.noE_interaction, m.tiles.orig)
+df <- compare(m.tiles.noE_interaction, m.tiles.orig, m.tiles.noE)
 df <- round(df@output, 2)
 
 df %>% kable(caption = "TILES REVEALED")  %>% 
@@ -473,8 +471,14 @@ m.tiles.guessnum_CEinter <- map2stan(
     sigma ~ dgamma(2, 0.5)
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
 
-#compare just interaction vs no-interaction models, when including guess number
-compare(m.tiles.guessnum, m.tiles.guessnum_CEinter)
+#compare interaction vs no-interaction models,including/excluding guess number
+df <- compare(m.tiles.guessnum, m.tiles.guessnum_CEinter, m.tiles.noE_interaction, m.tiles.orig)
+df <- round(df@output, 2)
+
+df %>% kable(caption = "TILES REVEALED")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
 
 ###Tiles: main effect of sex####
 m.tiles.sex.nointer <- map2stan(
@@ -493,7 +497,74 @@ m.tiles.sex.nointer <- map2stan(
     sigma ~ dgamma(2, 0.5)
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
 
-###Tiles: main effect of sex and interaction####
+###Tiles: main effect of sex and interaction between competition and effort###
+m.tiles.sex.CEinter <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s + 
+      bGs*Guess_Number.s + bS*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10), 
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+###Tiles: main effect of sex and interaction between competition and effort###
+m.tiles.sex.CEinter.ESinter <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bCE*Competition*Effort + bNs*n_major.s + 
+      bGs*Guess_Number.s + bS*Sex + bES*Effort*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10), 
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bES ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+#only sex interaction
+m.tiles.sex.ESinteronly <- map2stan(
+  alist(
+    TilesRevealed ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s + 
+      bGs*Guess_Number.s + bS*Sex + bES*Effort*Sex,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10),
+    bNs ~ dnorm(0, 10),
+    bCE ~ dnorm(0, 10), 
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bES ~ dnorm(0, 10),
+    a ~ dunif(0, 25), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
+
+#compare alternative models
+df <- compare(m.tiles.guessnum, m.tiles.guessnum_CEinter,
+              m.tiles.sex.nointer, m.tiles.sex.CEinter, 
+              m.tiles.sex.ESinteronly, m.tiles.sex.CEinter.ESinter)
+df <- round(df@output, 2)
+
+df %>% kable(caption = "TILES REVEALED")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
+
+###kitchen sink###
 m.tiles.sex.inter <- map2stan(
   alist(
     TilesRevealed ~ dnorm(mu, sigma), 
@@ -511,16 +582,6 @@ m.tiles.sex.inter <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05),
     sigma ~ dgamma(2, 0.5)
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
-
-#table of alternative model comparison
-df <- compare(m.tiles.guessnum, m.tiles.sex.nointer, m.tiles.sex.inter, 
-              m.tiles.orig, m.tiles.guessnum_CEinter, m.tiles.noE_interaction)
-df <- round(df@output, 2)
-
-df %>% kable(caption = "TILES REVEALED")  %>% 
-  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
-                full_width = TRUE) %>%
-  column_spec(1:5, width = "2cm")
 
 m.tiles.sex.inter2 <- map2stan(
   alist(
@@ -542,7 +603,6 @@ m.tiles.sex.inter2 <- map2stan(
     sigma ~ dgamma(2, 0.5)
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
 
-###Interactions with Guess Number and n_major.s
 m.tiles.guess.nmajor.inter <- map2stan( 
   alist(
     TilesRevealed ~ dnorm(mu, sigma), 
@@ -580,7 +640,7 @@ m.tiles.guess.nmajor.inter2only <- map2stan(
     sigma ~ dgamma(2, 0.5)
   ), data=d.conf.agg, iter=5000, chains=3, cores=3, warmup=500)
 
-#Comparison of alternative models for tiles revealed
+#Comparison of alternative models including kitchen sink 
 df <- compare(m.tiles.guessnum, m.tiles.guessnum_CEinter, 
               m.tiles.sex.inter, m.tiles.sex.inter2,
         m.tiles.guess.nmajor.inter, m.tiles.guess.nmajor.inter2only)
@@ -636,15 +696,6 @@ m_accuracy_guess_nointer <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05)
   ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
 
-#model comparison table
-df <- compare(m_accuracy_orig.guess, m_accuracy_guess_nointer)
-df <- round(df@output, 2)
-
-df %>% kable(caption = "ACCURACY")  %>% 
-  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
-                full_width = TRUE) %>%
-  column_spec(1:5, width = "2cm")
-
 m_accuracy_componly <- map2stan(
   alist(
     Correct_Guess ~ dbinom(1, theta), 
@@ -657,7 +708,16 @@ m_accuracy_componly <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05)
   ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
 
-#more models
+#model comparison table of models with and without effort / effort interactions
+df <- compare(m_accuracy_orig.guess, m_accuracy_guess_nointer, m_accuracy_componly)
+df <- round(df@output, 2)
+
+df %>% kable(caption = "ACCURACY")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
+
+#models including sex and interations with sex
 m_accuracy_sex <- map2stan(
   alist(
     Correct_Guess ~ dbinom(1, theta), 
@@ -671,6 +731,50 @@ m_accuracy_sex <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05)
   ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
 
+m_accuracy_sex_effort_inter <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s +
+      bGs*Guess_Number.s + bS*Sex + bES*Sex*Effort,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bES ~ dnorm(0, 10), 
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+m_accuracy_sex_effort_inter_CEinter <- map2stan(
+  alist(
+    Correct_Guess ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bE*Effort + bNs*n_major.s +
+      bGs*Guess_Number.s + bS*Sex + bES*Sex*Effort + bCE*Competition*Effort,
+    bC ~ dnorm(0, 10), 
+    bE ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    bES ~ dnorm(0, 10), 
+    bCE ~ dnorm(0, 10), 
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
+
+#compare simpler models with sex and sex*effort
+df <- compare(m_accuracy_guess_nointer, m_accuracy_componly, m_accuracy_sex, 
+              m_accuracy_sex_effort_inter, m_accuracy_sex_effort_inter_CEinter)
+df <- round(df@output, 2)
+
+df %>% kable(caption = "ACCURACY")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
+
+#kitchen sink models
 m_accuracy_sex_inter <- map2stan(
   alist(
     Correct_Guess ~ dbinom(1, theta), 
@@ -707,16 +811,6 @@ m_accuracy_nmajor_sex_inters <- map2stan(
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1.5, 0.05)
   ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
-
-#model comparison table
-df <- compare(m_accuracy_orig.guess, m_accuracy_guess_nointer, m_accuracy_componly, m_accuracy_sex, 
-              m_accuracy_sex_inter)
-df <- round(df@output, 2)
-
-df %>% kable(caption = "ACCURACY")  %>% 
-  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
-                full_width = TRUE) %>%
-  column_spec(1:5, width = "2cm")
 
 m_accuracy_compeff_guess_nmajor_inter <- map2stan(
   alist(
@@ -756,13 +850,17 @@ m_accuracy_compeff_guess_nmajor_inter_G_N <- map2stan(
     sigma_player ~ dgamma(1.5, 0.05)
   ), data=d.conf.agg, iter=4500, chains = 2, cores = 2, warmup=500)
 
-#compare alternative models using information criteria
+############
+###kitchen sink model comparison###
+############
+
 df <- compare(
   m_accuracy_sex_inter,
   m_accuracy_nmajor_sex_inters,
   m_accuracy_compeff_guess_nmajor_inter_G_N,
-  m_accuracy_compeff_guess_nmajor_inter)
-
+  m_accuracy_compeff_guess_nmajor_inter, 
+  m_accuracy_componly, 
+  m_accuracy_guess_nointer)
 df <- round(df@output, 2)
 
 df %>% kable(caption = "ACCURACY")  %>% 
@@ -770,6 +868,7 @@ df %>% kable(caption = "ACCURACY")  %>%
                 full_width = TRUE) %>%
   column_spec(1:5, width = "2cm")
 
+#plot model coefficients
 multi_models_accuracy <- coeftab(
                         m_accuracy_nmajor_sex_inters,
                         m_accuracy_compeff_guess_nmajor_inter,
@@ -793,7 +892,7 @@ coeftab_plot(multi_models_accuracy,
 d.conf_3_math.complete$ID_Player <- coerce_index(d.conf_3_math.complete$ID_Player)
 d.conf_3_math.complete$Sex <- as.integer(d.conf_3_math.complete$Sex)
 
-d.math.agg <- aggregate(cbind(ElapsedTime_MathSolved, ElapsedTime_Math) ~ Effort + Competition + 
+d.math.agg <- aggregate(cbind(ElapsedTime_MathSolved) ~ Effort + Competition + 
                           Sex + Tile_Number + Guess_Number + n_major.s + ID_Player, 
                         data=d.conf_3_math.complete, FUN = mean)
 
@@ -870,6 +969,19 @@ df %>% kable(caption = "EFFORT: ARITHMETIC PROBLEMS")  %>%
 #comparing models with and without guess number
 compare(m_effort_guessnum, m_effort_guessnum_nocomp, m_effort_orig, m_effort_noC)
 
+m_effort_sex_nocomp <- map2stan(
+  alist(
+    ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
+    mu <- a + a_player[ID_Player] + bNs*n_major.s + bGs*Guess_Number.s + bS*Sex,
+    bGs ~ dnorm(0, 10),
+    bS ~ dnorm(0, 10), 
+    bNs ~ dnorm(0, 10),
+    a ~ dgamma(1, 0.05), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1, 0.05),
+    sigma ~ dgamma(2, 0.5)
+  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
+
 m_effort_sex <- map2stan(
   alist(
     ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
@@ -901,8 +1013,8 @@ m_effort_sex_inter <- map2stan(
     sigma ~ dgamma(2, 0.5)
   ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
 
-#compare models with and without an interaction between competition and sex
-df <- compare(m_effort_sex, m_effort_sex_inter)
+#compare alternative models including/excluding sex
+df <- compare(m_effort_sex, m_effort_sex_inter, m_effort_sex_nocomp)
 df <- round(df@output, 2)
 
 df %>% kable(caption = "EFFORT: ARITHMETIC PROBLEMS")  %>% 
@@ -910,6 +1022,17 @@ df %>% kable(caption = "EFFORT: ARITHMETIC PROBLEMS")  %>%
                 full_width = TRUE) %>%
   column_spec(1:5, width = "2cm")
 
+#compare all models except kitchen sink
+df <- compare(m_effort_sex_nocomp, m_effort_sex, m_effort_sex_inter, m_effort_guessnum, 
+              m_effort_guessnum_nocomp, m_effort_noC, m_effort_orig)
+df <- round(df@output, 2)
+
+df %>% kable(caption = "EFFORT: ARITHMETIC PROBLEMS")  %>% 
+  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
+                full_width = TRUE) %>%
+  column_spec(1:5, width = "2cm")
+
+#kitchen sink moodel
 m_effort_inters <- map2stan(
   alist(
     ElapsedTime_MathSolved ~ dnorm(mu, sigma), 
@@ -928,10 +1051,9 @@ m_effort_inters <- map2stan(
     sigma ~ dgamma(2, 0.5)
   ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
 
-#model comparison and table for all models
-df <- compare(m_effort_inters, m_effort_sex_inter, m_effort_sex, 
-              m_effort_guessnum, m_effort_guessnum_nocomp,
-              m_effort_orig, m_effort_noC)
+#kitchen sink model comparison and table 
+df <- compare(m_effort_inters, m_effort_sex_inter, m_effort_sex, m_effort_sex_nocomp, 
+              m_effort_guessnum, m_effort_guessnum_nocomp)
 df <- round(df@output, 2)
 
 df %>% kable(caption = "EFFORT: ARITHMETIC PROBLEMS")  %>% 
@@ -939,26 +1061,16 @@ df %>% kable(caption = "EFFORT: ARITHMETIC PROBLEMS")  %>%
                 full_width = TRUE) %>%
   column_spec(1:5, width = "2cm")
 
-#model comparison for two models with sex and guess number, with and without competition effects
-df <- compare(m_effort_sex_inter, m_effort_guessnum)
-df <- round(df@output, 2)
-
-df %>% kable(caption = "EFFORT: TIME TO ACCURATELY SOLVE AN ARITHMETIC PROBLEM")  %>% 
-  kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
-                full_width = TRUE) %>%
-  column_spec(1:5, width = "2cm")
-
 #coefficient plots
-multi_models_effort <- coeftab(m_effort_inters, m_effort_sex_inter, m_effort_guessnum, m_effort_orig, m_effort_noC)
+multi_models_effort <- coeftab(m_effort_inters, m_effort_sex_inter,
+                               m_effort_guessnum, m_effort_orig, m_effort_noC)
 
 #full plot
 coeftab_plot(multi_models_effort, 
-             pars=c("bC", "bNs", "bGs", "bS",  "bCS", "bGsS", "bCGs"), 
-             prob = 0.95, col.ci = rangi2)
-#part of plot
-coeftab_plot(multi_models_effort, 
-             pars=c("bC", "bNs", "bGs", "bS",  "bCS"), 
-             prob = 0.95, col.ci = rangi2, main = "Time (seconds) to Accurately Solve One Arithmetic Problem")
+             pars=c("bC", "bNs", "bGs", "bS",  "bCS", "bES", "bGsS", "bCGs"), 
+             prob = 0.95, col.ci = rangi2, 
+             main = "Parameter Estimates Predicting Time (seconds) 
+             to Accurately Solve One Arithmetic Problem")
 
 ##############
 ###plotting predictions for m_effort_inters###
@@ -1017,16 +1129,20 @@ n <- n + scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes"))
 
 n
 
+ddd <- d.conf_3_math.complete[,c(1:14, 17)]
 
 ##############
-###time to produce any answer (i.e correct or incorrect)###
+###Time to produce any answer (i.e correct or incorrect)###
 ###############
+
+d.conf_3_math.complete$Guess_Number.s <- 
+  (d.conf_3_math.complete$Guess_Number - mean(d.conf_3_math.complete$Guess_Number)) / sd(d.conf_3_math.complete$Guess_Number)
 
 m_math_any_sex_inter <- map2stan(
   alist(
     ElapsedTime_Math ~ dnorm(mu, sigma), 
-    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + bGs*Guess_Number.s +
-      bS*Sex + bCS*Competition*Sex, 
+    mu <- a + a_player[ID_Player] + bC*Competition + bNs*n_major.s + 
+      bGs*Guess_Number.s + bS*Sex + bCS*Competition*Sex, 
     bC ~ dnorm(0, 10), 
     bGs ~ dnorm(0, 10),
     bS ~ dnorm(0, 10), 
@@ -1036,46 +1152,84 @@ m_math_any_sex_inter <- map2stan(
     a_player[ID_Player] ~ dnorm(0, sigma_player),
     sigma_player ~ dgamma(1, 0.05),
     sigma ~ dgamma(2, 0.5)
-  ), data=d.math.agg, iter=5000, chains = 3, cores = 3, warmup=500)
+  ), data=d.conf_3_math.complete, iter=10000, chains = 3, cores = 3, warmup=500)
 
 plot(precis(m_math_any_sex_inter, prob=0.95), 
      main = "Time (seconds) to Produce Any Answer to One Arithmetic Problem", 
      xlab = "Estimate", 
      col.ci = rangi2)
 
-###########
-###Reward per unit time, without outlier removal###
-###########
+###################
+###Probability of correct math answer as a function of competition###
+###################
 
-#removes participants who did not complete the study
-df.reward <- d.conf_1_2.b[complete.cases(d.conf_1_2.b),]
+m_effort_accuracy <- map2stan(
+  alist(
+    Correct_Math ~ dbinom(1, theta), 
+    logit(theta) <- a + a_player[ID_Player] + bC*Competition + bGs*Guess_Number.s + bS*Sex + bCS*Competition*Sex, 
+    bC ~ dnorm(0, 10), 
+    bS ~ dnorm(0, 10),
+    bCS ~ dnorm(0, 10),
+    bGs ~ dnorm(0, 10),
+    a ~ dnorm(0, 10), 
+    a_player[ID_Player] ~ dnorm(0, sigma_player),
+    sigma_player ~ dgamma(1.5, 0.05)
+  ), data=d.conf_3_math.complete, iter=5000, chains = 1, cores = 1, warmup=500)
 
-d.reward.agg <- aggregate(cbind(Reward) ~ Effort + Competition + Sex +
-                          Correct_Guess + ElapsedTime_Guess + ID_Player, 
-                        data=df.reward, FUN = mean)
+plot(precis(m_effort_accuracy, prob = 0.95), 
+     main = "Math Accuracy: Log Odds of Correctly Solving Problem",
+     xlab = "Estimate", 
+     col.ci = rangi2)
 
-df_sum_times <- aggregate(ElapsedTime_Guess ~ ID_Player, data=d.reward.agg, FUN = sum)
+d.pred.a <- list(
+  Competition = c(0, 0, 1, 1), 
+  Sex = c(0, 1, 0, 1),  
+  Guess_Number_s = c(0, 0, 0, 0), 
+  ID_Player = rep(2, 4) #placeholder
+)
 
-#total time for each player
-d.reward.agg$totaltime <- NA
-for (i in unique(df_sum_times$ID_Player)){
-              d.reward.agg$totaltime[d.reward.agg$ID_Player == i] <- 
-                    df_sum_times$ElapsedTime_Guess[df_sum_times$ID_Player==i]
-                }
+#replace varying intercept samples with zeros
+a_player_zeros <- matrix(0, nrow=2000, ncol = length(unique(d.conf_3_math.complete$ID_Player)))
+m.link <- link(m_effort_inters, n=2000, data=d.pred.a, replace = list(a_player=a_player_zeros))
 
-#correct guesses per unit time
-d.reward.agg.acc <- aggregate(cbind(Correct_Guess) ~ Effort + Competition + Sex + totaltime + ID_Player, 
-                                                    data=d.reward.agg, FUN = sum)
+#summarize and plot with plot function
+pred.p.mean <- apply( m.link , 2 , mean )
+pred.p.PI <- apply( m.link , 2 , HPDI , prob=0.95)
 
-#total number of problems that each player attempted
-d.reward.agg.acc$totalgrids <- NA
-for(i in unique(d.reward.agg$ID_Player)){
-  ROWS <- nrow(d.reward.agg[d.reward.agg$ID_Player == i,])
-  d.reward.agg.acc$totalgrids[d.reward.agg.acc$ID_Player==i] <- ROWS
-}
+d.gg <- data.frame(mean = pred.p.mean, low_ci = pred.p.PI[1,], high_ci = pred.p.PI[2,], 
+                   competition = as.factor(c(0, 0, 1, 1)), sex = as.factor(c(0, 1, 0, 1)))
 
-#proportion of true results for each player
-d.reward.agg.acc$trueresult_prop <- d.reward.agg.acc$Correct_Guess / d.reward.agg.acc$totalgrids
+#plotting
+d.gg.math <- d.math.agg[, c(2, 3, 7, 8)]
+d.gg$Competition <- d.gg$competition
+d.gg$Sex <- d.gg$sex
+d.gg$ElapsedTime_MathSolved <- d.gg$mean
+
+ggplot(d.gg.math, aes(x = as.factor(Competition), y = ElapsedTime_MathSolved, 
+                      fill = as.factor(Sex))) + 
+  geom_violin(trim = FALSE, bw = 0.8) + 
+  facet_grid(. ~ Sex) + theme_bw(base_size = 14) + theme(strip.text.x = element_blank()) +
+  xlab("Competition") + ylab("Time to accurately solve an arithmetic problem") +
+  scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes")) +
+  geom_pointrange(aes(ymin = low_ci, ymax=high_ci), data=d.gg, lwd=0.8) +
+  scale_fill_brewer(name="Sex", palette = "Dark2", 
+                    labels = c("Female", "Male"))
+
+#alternate plot
+n <- ggplot(data=d.gg, aes(x=competition, y=mean, color=sex, group=sex)) +
+  geom_pointrange(aes(ymin=low_ci, ymax=high_ci), lwd=0.8) +
+  facet_grid(. ~ sex) + theme_bw(base_size=14) +
+  theme(strip.text.x = element_blank()) + 
+  geom_line(lwd=0.8) +
+  ylim(0, 5) + xlab("Competition") + ylab("Time to accurately solve one arithmetic problem")
+
+n <- n + scale_colour_brewer(name="Sex",
+                             labels = c("Female", "Male"),
+                             palette = "Set1") 
+
+n <- n + scale_x_discrete(name ="Competition", labels=c("No","Yes","No", "Yes"))
+
+n
 
 #######
 ###Reward per unit time as a function of competition and effort###
@@ -1307,6 +1461,258 @@ ggplot(data=d.gg, aes(x = as.factor(n_major_s), y = mean,
   scale_color_brewer(name="Effect Size", palette = "Reds", 
                      labels = c("Small", "Medium", "Large"))
 
+
+###################
+###Bayes Factors###
+###################
+
+###load additional libraries###
+library(lme4)
+library(lmerTest)
+library(effects)
+
+#subset data into separate objects for frequentist analyses
+d.math.agg.f <- d.math.agg
+d.math.agg.f$Competition <- as.factor(d.math.agg.f$Competition)
+d.math.agg.f$ID_Player <- as.factor(d.math.agg.f$ID_Player)
+d.math.agg.f$Sex <- as.factor(d.math.agg.f$Sex)
+
+d.conf.agg.f <- d.conf.agg
+d.conf.agg.f$Competition <- as.factor(d.conf.agg.f$Competition)
+d.conf.agg.f$Effort <- as.factor(d.conf.agg.f$Effort)
+d.conf.agg.f$ID_Player <- as.factor(d.conf.agg.f$ID_Player)
+d.conf.agg.f$Sex <- as.factor(d.conf.agg.f$Sex)
+
+###Effort###
+m.effort.f <- lmer(ElapsedTime_MathSolved ~ Competition + n_major.s + 
+                     (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+m.effort.f.null <- lmer(ElapsedTime_MathSolved ~ n_major.s + 
+                          (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+m.effort.f.guess.sex <- lmer(ElapsedTime_MathSolved ~ Sex + Competition + n_major.s + 
+                               Guess_Number.s + (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+m.effort.f.guess.sex.null <- lmer(ElapsedTime_MathSolved ~ Sex + n_major.s + 
+                                    Guess_Number.s + (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+### BIC's and Bayes Factors ### 
+
+#without sex and guess number
+anova(m.effort.f, m.effort.f.null)
+
+#Calculating BIC (Min N), assuming that N=130 for BIC calculations
+-2*-39638 + 4*log(130) # intercept only
+-2*-39638 + 5*log(130) # competition predictor
+
+#Calculating BIC (Max N), assuming that N=20098 for BIC calculations
+-2*-39638 + 4*log(20098) # intercept only
+-2*-39638 + 5*log(20098) # competition predictor
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 130
+exp((79300.34 - 79295.47)/2) # BIC of 11 in favor of no-competition model
+#Using BIC's when N = 20098
+exp((79325.54 - 79315.63)/2) # BIC of 142 in favor of no-competition model
+
+#with sex and guess number
+anova(m.effort.f.guess.sex.null, m.effort.f.guess.sex)
+
+#Calculating BIC (Min N), assuming that N=130 for BIC calculations
+-2*-39549 + 6*log(130) # intercept only
+-2*-39549 + 7*log(130) # competition predictor
+
+#Calculating BIC (Max N), assuming that N=20098 for BIC calculations
+-2*-39549 + 6*log(20098) # intercept only
+-2*-39549 + 7*log(20098) # competition predictor
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 130
+exp((79132.07 - 79127.21)/2) # BIC of 11 in favor of no-competition model
+#Using BIC's when N = 20098
+exp((79167.36 - 79157.45)/2) # BIC of 142 in favor of no-competition model
+
+##########
+###interaction between competition and sex (null model vs no interaction) ###
+##########
+
+m.effort.f.guess.sex.inter <- lmer(ElapsedTime_MathSolved ~ Sex*Competition + n_major.s + 
+                                     Guess_Number.s + (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+m.effort.f.guess.sex.inter.null <- lmer(ElapsedTime_MathSolved ~ n_major.s + Guess_Number.s + (1|ID_Player), 
+                                        data = d.math.agg.f, REML=FALSE)
+
+#plot
+plot(allEffects(m.effort.f.guess.sex.inter))
+summary(m.effort.f.guess.sex.inter)
+
+#with sex and guess number
+anova(m.effort.f.guess.sex.inter, m.effort.f.guess.sex.inter.null)
+
+#Calculating BIC (Min N), assuming that N=130 for BIC calculations
+-2*-39554 + 5*log(130) # null
+-2*-39549 + 8*log(130) # interaction
+
+#Calculating BIC (Max N), assuming that N=20098 for BIC calculations
+-2*-39554 + 5*log(20098) # null 
+-2*-39549 + 8*log(20098) # interaction 
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 130
+exp((79136.94 - 79132.34)/2) # BIC of 10 in favor of no-interaction model
+#Using BIC's when N = 20098
+exp((79177.27 - 79157.54)/2) # BIC of 19245 in favor of no-interaction model
+
+############
+###interaction between competition and sex (sex*competition model vs no interaction) ###
+############
+
+m.effort.f.guess.sex.inter <- lmer(ElapsedTime_MathSolved ~ Sex*Competition + n_major.s + 
+                                     Guess_Number.s + (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+m.effort.f.guess.sex <- lmer(ElapsedTime_MathSolved ~ Sex + Competition + n_major.s + 
+                               Guess_Number.s + (1|ID_Player), data = d.math.agg.f, REML=FALSE)
+
+#plot
+plot(allEffects(m.effort.f.guess.sex))
+summary(m.effort.f.guess.sex)
+
+#with sex and guess number
+anova(m.effort.f.guess.sex.inter, m.effort.f.guess.sex)
+
+#Calculating BIC (Min N), assuming that N=130 for BIC calculations
+-2*-39549 + 7*log(130) # null
+-2*-39549 + 8*log(130) # interaction
+
+#Calculating BIC (Max N), assuming that N=20098 for BIC calculations
+-2*-39549 + 7*log(20098) # null 
+-2*-39549 + 8*log(20098) # interaction 
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+#Using BIC's when N = 130
+exp((79136.94 - 79132.07)/2) # BIC of 11 in favor of no-interaction model
+#Using BIC's when N = 20098
+exp((79177.27 - 79167.36)/2) # BIC of 142 in favor of no-interaction model
+
+
+
+############
+###Tiles Revealed###
+############
+
+m.tiles.f <- lmer(TilesRevealed ~ Competition*Effort + n_major.s + 
+                    (1|ID_Player), data = d.conf.agg.f, REML=FALSE)
+
+m.tiles.f.nointer <- lmer(TilesRevealed ~ Competition + Effort + n_major.s + 
+                            (1|ID_Player), data = d.conf.agg.f, REML=FALSE)
+
+m.tiles.f.guess <- lmer(TilesRevealed ~ Sex*Effort + Competition*Effort + n_major.s + 
+                          Guess_Number.s + (1|ID_Player), data = d.conf.agg.f, REML=FALSE)
+
+m.tiles.f.guess.nointer <- lmer(TilesRevealed ~ Sex*Effort + Competition + Effort + n_major.s + 
+                                  Guess_Number.s + (1|ID_Player), data = d.conf.agg.f, REML=FALSE)
+
+### BIC's and Bayes Factors ### 
+
+#without sex and guess number
+anova(m.tiles.f, m.tiles.f.nointer)
+
+#Calculating BIC (Min N), assuming that N=260 for BIC calculations
+-2*-35318 + 6*log(260) # intercept only
+-2*-35317 + 7*log(260) # competition predictor
+
+#Calculating BIC (Max N), assuming that N=14073 for BIC calculations
+-2*-35318 + 6*log(14073) # intercept only
+-2*-35317 + 7*log(14073) # competition predictor
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 260
+exp((70672.92 - 70669.36)/2) # BIC of 6 in favor of no-interaction model
+#Using BIC's when N = 14073
+exp((70700.86 - 70693.31)/2) # BIC of 44 in favor of no-interaction model
+
+#with sex and guess number
+anova(m.tiles.f.guess, m.tiles.f.guess.nointer)
+
+#Calculating BIC (Min N), assuming that N=260 for BIC calculations
+-2*-35277 + 9*log(260) # intercept only
+-2*-35277 + 10*log(260) # competition predictor
+
+#Calculating BIC (Max N), assuming that N=14073 for BIC calculations
+-2*-35277 + 9*log(14073) # intercept only
+-2*-35277 + 10*log(14073) # competition predictor
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 260
+exp((70609.61 - 70604.05)/2) # BIC of 16 in favor of no-interaction model
+#Using BIC's when N = 14073
+exp((70649.52 - 70639.97)/2) # BIC of 118 in favor of no-interaction model
+
+
+
+############
+###Accuracy###
+############
+
+m.accuracy.f <- glmer(Correct_Guess ~ Competition*Effort + n_major.s + 
+                        (1|ID_Player), data = d.conf.agg.f, family = binomial)
+
+m.accuracy.f.nointer <- glmer(Correct_Guess ~ Competition + Effort + n_major.s + 
+                                (1|ID_Player), data = d.conf.agg.f, family = binomial)
+
+m.accuracy.f.guess <- glmer(Correct_Guess ~ Sex*Effort + Competition*Effort + n_major.s + 
+                              Guess_Number.s + (1|ID_Player), data = d.conf.agg.f, family = binomial)
+
+m.accuracy.f.guess.nointer <- glmer(Correct_Guess ~ Sex*Effort + Competition + Effort + n_major.s + 
+                                      Guess_Number.s + (1|ID_Player), data = d.conf.agg.f, family = binomial)
+
+plot(allEffects(m.accuracy.f.guess))
+
+### BIC's and Bayes Factors ### 
+
+#without sex and guess number
+anova(m.accuracy.f, m.accuracy.f.nointer)
+
+#Calculating BIC (Min N), assuming that N=260 for BIC calculations
+-2*-7409 + 5*log(260) # intercept only
+-2*-7409 + 6*log(260) # competition predictor
+
+#Calculating BIC (Max N), assuming that N=14073 for BIC calculations
+-2*-7409 + 5*log(14073) # intercept only
+-2*-7409 + 6*log(14073) # competition predictor
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 260
+exp((14851.36 - 14845.8)/2) # BIC of 16 in favor of no-interaction model
+#Using BIC's when N = 14073
+exp((14875.31 - 14865.76)/2) # BIC of 118 in favor of no-interaction model
+
+#with sex and guess number
+anova(m.accuracy.f.guess, m.accuracy.f.guess.nointer)
+
+#Calculating BIC (Min N), assuming that N=260 for BIC calculations
+-2*-7374.7 + 8*log(260) # intercept only
+-2*-7374.7 + 9*log(260) # competition predictor
+
+#Calculating BIC (Max N), assuming that N=14073 for BIC calculations
+-2*-7374.7 + 8*log(14073) # intercept only
+-2*-7374.7 + 9*log(14073) # competition predictor
+
+###Approximate Bayes Factors using exp(BIC1/BIC2) (see Wagenmakers 2007)###
+
+#Using BIC's when N = 260
+exp((14799.45 - 14793.89)/2) # BIC of 16 in favor of no-interaction model
+#Using BIC's when N = 14073
+exp((14835.37 - 14825.82)/2) # BIC of 118 in favor of no-interaction model
+
+
+
 #################
 ###Supplementary Analyses not in the SI###
 #Time to reveal 1 tile
@@ -1386,3 +1792,6 @@ quality_df %>% kable(caption = "TIME TO REVEAL 1 TILE")  %>%
   kable_styling(bootstrap_options = c("striped", "condensed", "responsive"), 
                 full_width = TRUE) %>%
   column_spec(1:5, width = "2cm")
+
+kkk %>% 
+  select(Correct_Math, ElapsedTime_Math, ElapsedTime_MathSolved, Tile_Number, Problem_Number)
